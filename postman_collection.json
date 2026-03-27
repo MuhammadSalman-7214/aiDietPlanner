@@ -1,0 +1,103 @@
+{
+  "info": {
+    "name": "AI Diet Planner API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api" },
+    { "key": "token", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/register",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Jane Doe\",\n  \"email\": \"jane@example.com\",\n  \"password\": \"secret123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"jane@example.com\",\n  \"password\": \"secret123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Diet Calculate",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/diet/calculate",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"age\": 28,\n  \"gender\": \"female\",\n  \"weight\": 65,\n  \"height\": 168,\n  \"activityLevel\": \"moderate\",\n  \"goal\": \"maintain\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Generate Meals",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/meals/generate",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"calories\": 2000,\n  \"dietType\": \"balanced\",\n  \"allergies\": [\"peanut\"],\n  \"mealsCount\": 4\n}"
+        }
+      }
+    },
+    {
+      "name": "Nutrition Log",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": "{{baseUrl}}/nutrition/log",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Chicken Salad\",\n  \"calories\": 420,\n  \"protein\": 35,\n  \"carbs\": 20,\n  \"fats\": 18,\n  \"targetCalories\": 2000\n}"
+        }
+      }
+    },
+    {
+      "name": "Nutrition Daily",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/nutrition/daily"
+      }
+    },
+    {
+      "name": "Nutrition Analysis",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": "{{baseUrl}}/nutrition/analysis"
+      }
+    },
+    {
+      "name": "AI Chat",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/ai/chat",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"message\": \"generate a meal plan\"\n}"
+        }
+      }
+    }
+  ]
+}
