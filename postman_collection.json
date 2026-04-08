@@ -4,100 +4,1183 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:4000/api" },
-    { "key": "token", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "https://aidietplanner.dgexpense.com"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
   ],
   "item": [
     {
+      "name": "Health Check",
+      "reason": "Server health check endpoint.",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/health"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "status": "ok",
+            "timestamp": "2026-04-03T12:00:00.000Z"
+          }
+        }
+      ]
+    },
+    {
       "name": "Register",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": "{{baseUrl}}/auth/register",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"Jane Doe\",\n  \"email\": \"jane@example.com\",\n  \"password\": \"secret123\"\n}"
-        }
-      }
-    },
-    {
-      "name": "Login",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": "{{baseUrl}}/auth/login",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"jane@example.com\",\n  \"password\": \"secret123\"\n}"
-        }
-      }
-    },
-    {
-      "name": "Diet Calculate",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": "{{baseUrl}}/diet/calculate",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"age\": 28,\n  \"gender\": \"female\",\n  \"weight\": 65,\n  \"height\": 168,\n  \"activityLevel\": \"moderate\",\n  \"goal\": \"maintain\"\n}"
-        }
-      }
-    },
-    {
-      "name": "Generate Meals",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": "{{baseUrl}}/meals/generate",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"calories\": 2000,\n  \"dietType\": \"balanced\",\n  \"allergies\": [\"peanut\"],\n  \"mealsCount\": 4\n}"
-        }
-      }
-    },
-    {
-      "name": "Nutrition Log",
+      "reason": "Create a new user account and send OTP for verification.",
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{token}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/register",
+        "body": {
+          "payload": {
+            "name": "Jane Doe",
+            "email": "jane@example.com",
+            "password": "secret123"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "Created",
+          "code": 201,
+          "data": {
+            "success": true,
+            "data": {
+              "user": {
+                "name": "test",
+                "email": "test@example.com",
+                "isEmailVerified": false,
+                "isPremium": false
+              },
+              "requiresOtp": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Verify OTP",
+      "reason": "Verify the OTP and activate the account.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/verify-otp",
+        "body": {
+          "payload": {
+            "email": "jane@example.com",
+            "otp": "123456"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "user": {
+                "id": 1,
+                "name": "test",
+                "email": "test@example.com",
+                "isPremium": false
+              },
+              "token": "JWT_TOKEN_HERE"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Resend OTP",
+      "reason": "Resend the OTP email to the user.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/resend-otp",
+        "body": {
+          "payload": {
+            "email": "jane@example.com"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "message": "OTP sent to email"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login",
+      "reason": "Authenticate a verified user and return a JWT.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/login",
+        "body": {
+          "payload": {
+            "email": "jane@example.com",
+            "password": "secret123"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "user": {
+                "id": 1,
+                "name": "test",
+                "email": "test@example.com",
+                "isPremium": false
+              },
+              "token": "JWT_TOKEN_HERE"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Me",
+      "reason": "Get the authenticated user profile.",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/me"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "name": "test",
+              "email": "test@example.com",
+              "isEmailVerified": true,
+              "isPremium": false,
+              "isActive": true,
+              "createdAt": "2026-04-03T10:00:00.000Z",
+              "updatedAt": "2026-04-03T10:00:00.000Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Update",
+      "reason": "Update the authenticated user name or password.",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/me",
+        "body": {
+          "payload": {
+            "name": "Jane Doe",
+            "password": "newpass123"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "name": "test",
+              "email": "test@example.com",
+              "isEmailVerified": true,
+              "isPremium": false,
+              "isActive": true,
+              "createdAt": "2026-04-03T10:00:00.000Z",
+              "updatedAt": "2026-04-03T11:00:00.000Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Status",
+      "reason": "Activate or deactivate the authenticated user.",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/status",
+        "body": {
+          "payload": {
+            "isActive": false
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "name": "test",
+              "email": "test@example.com",
+              "isEmailVerified": true,
+              "isPremium": false,
+              "isActive": false,
+              "createdAt": "2026-04-03T10:00:00.000Z",
+              "updatedAt": "2026-04-03T11:10:00.000Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Get",
+      "reason": "Fetch combined health profile and stats.",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/health"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "userId": 1,
+              "age": 28,
+              "gender": "male",
+              "activityLevel": "moderate",
+              "goal": "loss",
+              "heightCm": 178,
+              "weightKg": 74,
+              "mealPreferences": [
+                "high-protein"
+              ],
+              "mealAllergies": [
+                "peanuts"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Create",
+      "reason": "Create combined health profile and stats.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/health",
+        "body": {
+          "payload": {
+            "age": 28,
+            "gender": "female",
+            "activityLevel": "moderate",
+            "goal": "maintain",
+            "heightCm": 168,
+            "weightKg": 65,
+            "mealPreferences": [
+              "balanced"
+            ],
+            "mealAllergies": [
+              "peanut"
+            ]
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "Created",
+          "code": 201,
+          "data": {
+            "success": true,
+            "data": {
+              "userId": 1,
+              "age": 28,
+              "gender": "male",
+              "activityLevel": "moderate",
+              "goal": "loss",
+              "heightCm": 178,
+              "weightKg": 74,
+              "mealPreferences": [
+                "high-protein"
+              ],
+              "mealAllergies": [
+                "peanuts"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Update",
+      "reason": "Update combined health profile and stats.",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/health",
+        "body": {
+          "payload": {
+            "goal": "loss",
+            "weightKg": 64
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "userId": 1,
+              "age": 28,
+              "gender": "male",
+              "activityLevel": "moderate",
+              "goal": "maintain",
+              "heightCm": 178,
+              "weightKg": 72,
+              "mealPreferences": [
+                "high-protein"
+              ],
+              "mealAllergies": [
+                "peanuts"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Weight History",
+      "reason": "Fetch weight log history for a date range.",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/weight-history?start=2026-04-01&end=2026-04-30"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": [
+              {
+                "id": 1,
+                "weightKg": 74,
+                "loggedAt": "2026-04-03T10:00:00.000Z"
+              },
+              {
+                "id": 2,
+                "weightKg": 72,
+                "loggedAt": "2026-04-10T10:00:00.000Z"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Data Export",
+      "reason": "Export all user data (GDPR).",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/data/export"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "user": {
+                "id": 1,
+                "name": "test",
+                "email": "test@example.com",
+                "isPremium": false
+              },
+              "stats": {
+                "heightCm": 178,
+                "weightKg": 72
+              },
+              "profile": {
+                "age": 28,
+                "goal": "maintain"
+              },
+              "nutritionLogs": [],
+              "nutritionProgress": [],
+              "reminders": [],
+              "consultations": [],
+              "dietPlans": [],
+              "weightLogs": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Diet Calculate",
+      "reason": "Calculate BMR/TDEE and macro targets.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/diet/calculate",
+        "body": {
+          "payload": {
+            "age": 28,
+            "gender": "female",
+            "weight": 65,
+            "height": 168,
+            "activityLevel": "moderate",
+            "goal": "maintain"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "bmr": 1700,
+              "tdee": 2635,
+              "targetCalories": 2200,
+              "macros": {
+                "protein": 193,
+                "carbs": 220,
+                "fats": 61
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Diet Plan Create",
+      "reason": "Save a long-term diet plan (premium).",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/diet/plan",
+        "body": {
+          "payload": {
+            "planName": "8 Week Cut",
+            "weeks": 8,
+            "notes": "High protein focus"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "Created",
+          "code": 201,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "userId": 1,
+              "plan": {
+                "planName": "8 Week Cut",
+                "weeks": 8,
+                "notes": "High protein focus"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Diet Plan Latest",
+      "reason": "Fetch the latest saved diet plan (premium).",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/diet/plan/latest"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "userId": 1,
+              "plan": {
+                "planName": "8 Week Cut",
+                "weeks": 8,
+                "notes": "High protein focus"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Generate Meals",
+      "reason": "Generate a daily meal plan.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/meals/generate",
+        "body": {
+          "payload": {
+            "calories": 2000,
+            "dietType": "balanced",
+            "allergies": [
+              "peanut"
+            ],
+            "mealsCount": 4
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "breakfast": {
+                "items": [],
+                "totals": {}
+              },
+              "lunch": {
+                "items": [],
+                "totals": {}
+              },
+              "dinner": {
+                "items": [],
+                "totals": {}
+              },
+              "snacks": [],
+              "alternatives": {
+                "breakfast": [],
+                "lunch": [],
+                "dinner": [],
+                "snacks": []
+              },
+              "aiSuggestions": [],
+              "isPremiumPlan": false
+            },
+            "cached": false
+          }
+        }
+      ]
+    },
+    {
+      "name": "Meal Alternatives",
+      "reason": "Fetch alternative options for a meal type.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/meals/alternatives",
+        "body": {
+          "payload": {
+            "calories": 2000,
+            "dietType": "any",
+            "allergies": [],
+            "mealType": "lunch"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": []
+          }
+        }
+      ]
+    },
+    {
+      "name": "Nutrition Log",
+      "reason": "Log a meal and update daily progress.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
         ],
         "url": "{{baseUrl}}/nutrition/log",
         "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"Chicken Salad\",\n  \"calories\": 420,\n  \"protein\": 35,\n  \"carbs\": 20,\n  \"fats\": 18,\n  \"targetCalories\": 2000\n}"
+          "payload": {
+            "name": "Chicken Salad",
+            "calories": 420,
+            "protein": 35,
+            "carbs": 20,
+            "fats": 18,
+            "targetCalories": 2000
+          }
         }
-      }
+      },
+      "response": [
+        {
+          "status": "Created",
+          "code": 201,
+          "data": {
+            "success": true,
+            "data": {
+              "logs": [
+                {
+                  "id": 1,
+                  "name": "Chicken Salad",
+                  "calories": 350,
+                  "protein": 30,
+                  "carbs": 20,
+                  "fats": 10,
+                  "loggedAt": "2026-04-03T12:00:00.000Z"
+                }
+              ],
+              "progress": {
+                "date": "2026-04-03",
+                "targetCalories": 2000,
+                "consumedCalories": 350
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "name": "Nutrition Daily",
+      "reason": "Get daily nutrition summary.",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-        "url": "{{baseUrl}}/nutrition/daily"
-      }
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/nutrition/daily?date=2026-04-03"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "date": "2026-04-03",
+              "consumedCalories": 900,
+              "targetCalories": 2000,
+              "logs": []
+            }
+          }
+        }
+      ]
     },
     {
       "name": "Nutrition Analysis",
+      "reason": "Get daily nutrition status (under/over/on track).",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
-        "url": "{{baseUrl}}/nutrition/analysis"
-      }
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/nutrition/analysis?date=2026-04-03"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "date": "2026-04-03",
+              "status": "on_track",
+              "consumedCalories": 1900,
+              "targetCalories": 2000
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Nutrition Summary",
+      "reason": "Get nutrition summary for a period.",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/nutrition/summary?period=weekly&date=2026-04-03"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "period": "weekly",
+              "start": "2026-04-01",
+              "end": "2026-04-07",
+              "consumedCalories": 12000,
+              "targetCalories": 14000,
+              "logs": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Nutrition Analysis Range",
+      "reason": "Get nutrition status for a period range.",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/nutrition/analysis-range?period=weekly&date=2026-04-03"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "period": "weekly",
+              "start": "2026-04-01",
+              "end": "2026-04-07",
+              "status": "under_eating",
+              "consumedCalories": 9000,
+              "targetCalories": 14000
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Nutrition Missed Targets",
+      "reason": "List missed calorie targets for a period.",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/nutrition/missed-targets?period=weekly&date=2026-04-03"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": [
+              {
+                "date": "2026-04-03",
+                "consumedCalories": 1500,
+                "targetCalories": 2000,
+                "deficit": 500
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "AI Chat",
+      "reason": "Ask the AI nutrition assistant.",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "url": "{{baseUrl}}/ai/chat",
         "body": {
-          "mode": "raw",
-          "raw": "{\n  \"message\": \"generate a meal plan\"\n}"
+          "payload": {
+            "message": "generate a meal plan"
+          }
         }
-      }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "intent": "meal_generation",
+              "response": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reminders List",
+      "reason": "List user reminders.",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/reminders"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": [
+              {
+                "id": 1,
+                "type": "nutrition",
+                "message": "Log dinner",
+                "scheduledAt": "2026-04-03T20:00:00.000Z",
+                "enabled": true
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reminders Create",
+      "reason": "Create a reminder.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/reminders",
+        "body": {
+          "payload": {
+            "type": "nutrition",
+            "message": "Log your dinner",
+            "scheduledAt": "2026-04-03T20:00:00.000Z",
+            "enabled": true
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "Created",
+          "code": 201,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "type": "nutrition",
+              "message": "Log your dinner",
+              "scheduledAt": "2026-04-03T20:00:00.000Z",
+              "enabled": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reminders Update",
+      "reason": "Update a reminder.",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/reminders/1",
+        "body": {
+          "payload": {
+            "enabled": false
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "type": "nutrition",
+              "message": "Log your dinner",
+              "scheduledAt": "2026-04-03T20:00:00.000Z",
+              "enabled": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reminders Delete",
+      "reason": "Delete a reminder.",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/reminders/1"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "message": "Reminder deleted"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consultation Request",
+      "reason": "Request a consultation (premium).",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/consultations/request",
+        "body": {
+          "payload": {
+            "topic": "Weight loss plan",
+            "notes": "Need help with macros"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "Created",
+          "code": 201,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "topic": "Weight loss plan",
+              "status": "pending"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Consultations Mine",
+      "reason": "List user consultations (premium).",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/consultations/mine"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": [
+              {
+                "id": 1,
+                "topic": "Weight loss plan",
+                "status": "pending"
+              }
+            ]
+          }
+        }
+      ]
     }
   ]
 }

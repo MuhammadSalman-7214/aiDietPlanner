@@ -18,4 +18,22 @@ const login = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login };
+const verifyOtp = async (req, res, next) => {
+  try {
+    const result = await authService.verifyOtp(req.body);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const resendOtp = async (req, res, next) => {
+  try {
+    const result = await authService.resendOtp(req.body);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { register, login, verifyOtp, resendOtp };

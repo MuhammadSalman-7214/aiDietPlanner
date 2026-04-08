@@ -1,6 +1,7 @@
 const express = require('express');
 const dietController = require('./diet.controller');
 const { validateRequest } = require('../../middlewares/validation.middleware');
+const { authMiddleware, requirePremium } = require('../../middlewares/auth.middleware');
 const Joi = require('joi');
 
 const router = express.Router();
@@ -14,6 +15,10 @@ const dietSchema = Joi.object({
   goal: Joi.string().valid('loss', 'gain', 'maintain').required(),
 });
 
+const planSchema = Joi.object().min(1);
+
 router.post('/calculate', validateRequest(dietSchema), dietController.calculateDiet);
+router.post('/plan', authMiddleware, requirePremium, validateRequest(planSchema), dietController.savePlan);
+router.get('/plan/latest', authMiddleware, requirePremium, dietController.getLatestPlan);
 
 module.exports = router;

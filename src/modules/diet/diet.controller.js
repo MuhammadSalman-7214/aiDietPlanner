@@ -9,4 +9,22 @@ const calculateDiet = async (req, res, next) => {
   }
 };
 
-module.exports = { calculateDiet };
+const savePlan = async (req, res, next) => {
+  try {
+    const result = await dietService.savePlan(req.user.id, req.body);
+    res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getLatestPlan = async (req, res, next) => {
+  try {
+    const result = await dietService.getLatestPlan(req.user.id);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { calculateDiet, savePlan, getLatestPlan };

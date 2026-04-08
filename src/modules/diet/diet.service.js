@@ -1,4 +1,5 @@
 const { calculateBMR, calculateTDEE, calculateTargetCalories, calculateMacros } = require('../../utils/calorieCalculator');
+const dietRepo = require('./diet.repository');
 
 const calculateDiet = ({ age, gender, weight, height, activityLevel, goal }) => {
   const bmr = calculateBMR({ age, gender, weight, height });
@@ -14,4 +15,7 @@ const calculateDiet = ({ age, gender, weight, height, activityLevel, goal }) => 
   };
 };
 
-module.exports = { calculateDiet };
+const savePlan = async (userId, plan) => dietRepo.createPlan(userId, plan);
+const getLatestPlan = async (userId) => dietRepo.findLatestPlan(userId);
+
+module.exports = { calculateDiet, savePlan, getLatestPlan };

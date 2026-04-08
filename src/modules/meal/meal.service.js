@@ -52,7 +52,7 @@ const pickFoodsForTarget = (foods, targetCalories) => {
   return { items, totals };
 };
 
-const generateMealPlan = async ({ calories, dietType, allergies = [], mealsCount = 3 }) => {
+const generateMealPlan = async ({ calories, dietType, allergies = [], mealsCount = 3, isPremium = false }) => {
   const foods = await mealRepo.findFoods(dietType && dietType !== 'any' ? { dietType } : {});
   const safeFoods = filterAllergies(foods, allergies);
 
@@ -75,10 +75,11 @@ const generateMealPlan = async ({ calories, dietType, allergies = [], mealsCount
     snacks: snackFoods.slice(0, 3),
   };
 
-  return { breakfast, lunch, dinner, snacks, alternatives };
+  return { breakfast, lunch, dinner, snacks, alternatives, isPremiumPlan: isPremium };
 };
 
-const generateAIMealSuggestions = async ({ calories, dietType }) => {
+const generateAIMealSuggestions = async ({ calories, dietType, isPremium }) => {
+  if (!isPremium) return [];
   if (process.env.ENABLE_AI_MEAL_SUGGESTIONS !== 'true') return [];
 
   const prompt = `You are a nutrition assistant. Provide 2 meal suggestions for dietType: ${dietType}.
@@ -106,4 +107,11 @@ Target calories per meal: ${Math.round(calories / 3)}.`;
   }
 };
 
-module.exports = { generateMealPlan, generateAIMealSuggestions };
+const getAlternatives = async ({ calories, dietType, allergies = [], mealType }) => {
+  const foods = await mealRepo.findFoods(dietType && dietType !== 'any' ? { dietType } : {});
+  const safeFoods = filterAllergies(foods, allergies);
+  const pool = safeFoods.filter((food) => food.category === mealType);
+  return pool.slice(0, 5);
+};
+
+module.exports = { generateMealPlan, generateAIMealSuggestions, getAlternatives };
