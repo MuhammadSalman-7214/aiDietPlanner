@@ -18,7 +18,7 @@ router.post('/register', validateRequest(registerSchema), authController.registe
 router.post('/login', validateRequest(loginSchema), authController.login);
 router.post('/verify-otp', validateRequest(verifyOtpSchema), authController.verifyOtp);
 router.post('/resend-otp', validateRequest(resendOtpSchema), authController.resendOtp);
-router.post(
+router.put(
   '/password/update',
   authMiddleware,
   validateRequest(updatePasswordSchema),

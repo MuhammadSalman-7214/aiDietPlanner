@@ -184,7 +184,7 @@
       "name": "Password Update",
       "reason": "Update password for the authenticated user.",
       "request": {
-        "method": "POST",
+        "method": "PUT",
         "header": [
           {
             "key": "Content-Type",
