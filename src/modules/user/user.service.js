@@ -234,11 +234,18 @@ const exportUserData = async (userId) => {
   return userRepo.exportUserData(userId);
 };
 
-const deleteUserAccount = async (userId) => {
+const deactivateUserAccount = async (userId) => {
   const user = await userRepo.findById(userId);
   if (!user) throw new AppError('User not found', 404);
   const updated = await userRepo.updateUser(userId, { isActive: false });
   return { message: 'Account deactivated', user: updated };
+};
+
+const deleteUserAccount = async (userId) => {
+  const user = await userRepo.findById(userId);
+  if (!user) throw new AppError('User not found', 404);
+  await userRepo.deleteUserById(userId);
+  return { message: 'Account deleted' };
 };
 
 module.exports = {
@@ -255,6 +262,7 @@ module.exports = {
   createHealthProfile,
   updateHealthProfile,
   exportUserData,
+  deactivateUserAccount,
   deleteUserAccount,
   listWeightLogs: async (userId, startDate, endDate) => userRepo.listWeightLogs(userId, startDate, endDate),
 };

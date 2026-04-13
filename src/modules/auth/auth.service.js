@@ -120,7 +120,7 @@ const register = async ({ name, email, password }) => {
 const login = async ({ email, password }) => {
   const normalizedEmail = normalizeEmail(email);
   const user = await authRepo.findByEmail(normalizedEmail);
-  if (!user) throw new AppError("Invalid credentials", 401);
+  if (!user) throw new AppError("User not found", 404);
   if (!user.isEmailVerified) throw new AppError("Email not verified", 403);
   if (user.isActive === false) throw new AppError("Account is inactive", 403);
 

@@ -74,6 +74,7 @@ const ensureSchema = async (db) => {
       is_email_verified TINYINT(1) NOT NULL DEFAULT 0,
       is_premium TINYINT(1) NOT NULL DEFAULT 0,
       is_active TINYINT(1) NOT NULL DEFAULT 1,
+      profile_image_url VARCHAR(2048) NULL,
       email_otp_hash VARCHAR(255) NULL,
       email_otp_expires_at DATETIME NULL,
       email_otp_last_sent_at DATETIME NULL,
@@ -251,6 +252,12 @@ const ensureSchema = async (db) => {
     "users",
     "is_active",
     "`is_active` TINYINT(1) NOT NULL DEFAULT 1",
+  );
+  await ensureColumn(
+    db,
+    "users",
+    "profile_image_url",
+    "`profile_image_url` VARCHAR(2048) NULL",
   );
   await ensureColumn(
     db,

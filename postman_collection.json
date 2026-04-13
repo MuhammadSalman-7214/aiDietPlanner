@@ -306,6 +306,7 @@
               "isEmailVerified": true,
               "isPremium": false,
               "isActive": true,
+              "profileImageUrl": "/uploads/profile-images/example.jpg",
               "createdAt": "2026-04-03T10:00:00.000Z",
               "updatedAt": "2026-04-03T10:00:00.000Z"
             }
@@ -315,7 +316,7 @@
     },
     {
       "name": "User Update",
-      "reason": "Update the authenticated user name or password.",
+      "reason": "Update the authenticated user name.",
       "request": {
         "method": "PATCH",
         "header": [
@@ -331,8 +332,7 @@
         "url": "{{baseUrl}}/users/me",
         "body": {
           "payload": {
-            "name": "Jane Doe",
-            "password": "newpass123"
+            "name": "Jane Doe"
           }
         }
       },
@@ -349,8 +349,53 @@
               "isEmailVerified": true,
               "isPremium": false,
               "isActive": true,
+              "profileImageUrl": "/uploads/profile-images/example.jpg",
               "createdAt": "2026-04-03T10:00:00.000Z",
               "updatedAt": "2026-04-03T11:00:00.000Z"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Update (With Image)",
+      "reason": "Update name and upload profile image (multipart/form-data).",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/me",
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "name",
+              "value": "Jane Doe",
+              "type": "text"
+            },
+            {
+              "key": "profileImage",
+              "type": "file",
+              "src": ""
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "id": 1,
+              "name": "test",
+              "email": "test@example.com",
+              "profileImageUrl": "/uploads/profile-images/example.jpg"
             }
           }
         }
@@ -585,7 +630,8 @@
                 "id": 1,
                 "name": "test",
                 "email": "test@example.com",
-                "isPremium": false
+                "isPremium": false,
+                "profileImageUrl": "/uploads/profile-images/example.jpg"
               },
               "stats": {
                 "heightCm": 178,
@@ -601,6 +647,58 @@
               "consultations": [],
               "dietPlans": [],
               "weightLogs": []
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deactivate Account",
+      "reason": "Deactivate the authenticated user account.",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/data"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "message": "Account deactivated"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delete Account",
+      "reason": "Permanently delete the authenticated user account.",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/account"
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "message": "Account deleted"
             }
           }
         }

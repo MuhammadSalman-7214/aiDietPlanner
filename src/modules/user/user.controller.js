@@ -117,6 +117,15 @@ const exportUserData = async (req, res, next) => {
   }
 };
 
+const deactivateUserAccount = async (req, res, next) => {
+  try {
+    const result = await userService.deactivateUserAccount(req.user.id);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
 const deleteUserAccount = async (req, res, next) => {
   try {
     const result = await userService.deleteUserAccount(req.user.id);
@@ -151,6 +160,7 @@ module.exports = {
   createHealthProfile,
   updateHealthProfile,
   exportUserData,
+  deactivateUserAccount,
   deleteUserAccount,
   getWeightHistory,
 };

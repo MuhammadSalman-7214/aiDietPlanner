@@ -1,6 +1,7 @@
 const express = require('express');
 const { authMiddleware } = require('../../middlewares/auth.middleware');
 const { validateRequest } = require('../../middlewares/validation.middleware');
+const { handleProfileImageUpload, attachProfileImageUrl } = require('../../middlewares/upload.middleware');
 const userController = require('./user.controller');
 const Joi = require('joi');
 
@@ -8,7 +9,8 @@ const router = express.Router();
 
 const updateSchema = Joi.object({
   name: Joi.string().min(2).max(120),
-});
+  profileImageUrl: Joi.string().max(2048).allow(null),
+}).min(1);
 
 const profileSchema = Joi.object({
   age: Joi.number().min(10).max(120).allow(null),
@@ -56,7 +58,14 @@ const statusSchema = Joi.object({
 });
 
 router.get('/me', authMiddleware, userController.getProfile);
-router.patch('/me', authMiddleware, validateRequest(updateSchema), userController.updateProfile);
+router.patch(
+  '/me',
+  authMiddleware,
+  handleProfileImageUpload,
+  attachProfileImageUrl,
+  validateRequest(updateSchema),
+  userController.updateProfile,
+);
 router.patch('/status', authMiddleware, validateRequest(statusSchema), userController.updateUserStatus);
 router.get('/health', authMiddleware, userController.getHealthData);
 router.post('/health', authMiddleware, validateRequest(healthSchema), userController.createHealthData);
@@ -68,7 +77,8 @@ router.get('/stats', authMiddleware, userController.getStats);
 router.post('/stats', authMiddleware, validateRequest(statsSchema), userController.createStats);
 router.patch('/stats', authMiddleware, validateRequest(statsSchema), userController.updateStats);
 router.get('/data/export', authMiddleware, userController.exportUserData);
-router.delete('/data', authMiddleware, userController.deleteUserAccount);
+router.delete('/data', authMiddleware, userController.deactivateUserAccount);
+router.delete('/account', authMiddleware, userController.deleteUserAccount);
 router.get('/weight-history', authMiddleware, userController.getWeightHistory);
 
 module.exports = router;

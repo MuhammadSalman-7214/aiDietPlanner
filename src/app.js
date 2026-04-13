@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const routes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');
 const { rateLimiter } = require('./middlewares/rateLimit.middleware');
@@ -11,6 +12,8 @@ app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 app.use(requestLogger);
 app.use(rateLimiter);
+
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.use('/api', routes);
 

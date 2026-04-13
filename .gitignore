@@ -13,6 +13,9 @@ npm-debug.log*
 dist/
 build/
 
+# uploads
+uploads/
+
 # OS files
 .DS_Store
 
