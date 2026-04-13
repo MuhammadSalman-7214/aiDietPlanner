@@ -318,7 +318,7 @@
       "name": "User Update",
       "reason": "Update the authenticated user name.",
       "request": {
-        "method": "PATCH",
+        "method": "PUT",
         "header": [
           {
             "key": "Content-Type",
@@ -361,7 +361,7 @@
       "name": "User Update (With Image)",
       "reason": "Update name and upload profile image (multipart/form-data).",
       "request": {
-        "method": "PATCH",
+        "method": "PUT",
         "header": [
           {
             "key": "Authorization",

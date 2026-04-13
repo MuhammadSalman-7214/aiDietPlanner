@@ -10,6 +10,7 @@ const mapUserRow = (row) => {
     isPremium: Boolean(row.is_premium),
     isActive: row.is_active === undefined ? true : Boolean(row.is_active),
     profileImageUrl: row.profile_image_url || null,
+    passwordChangedAt: row.password_changed_at ? new Date(row.password_changed_at) : null,
     createdAt: row.created_at ? new Date(row.created_at) : null,
     updatedAt: row.updated_at ? new Date(row.updated_at) : null,
   };
@@ -32,7 +33,7 @@ const mapStatsRow = (row) => {
 const findById = async (id) => {
   const db = getDb();
   const [rows] = await db.query(
-    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
     [id]
   );
   return mapUserRow(rows[0]);
@@ -60,7 +61,7 @@ const updateUser = async (id, data) => {
 
   if (!fields.length) {
     const [rows] = await db.query(
-      'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+      'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
       [id]
     );
     return mapUserRow(rows[0]);
@@ -69,7 +70,7 @@ const updateUser = async (id, data) => {
   fields.push('updated_at = NOW()');
   await db.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, [...values, id]);
   const [rows] = await db.query(
-    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
     [id]
   );
   return mapUserRow(rows[0]);
@@ -149,7 +150,7 @@ const updateProfileData = async (userId, data) => {
 const exportUserData = async (userId) => {
   const db = getDb();
   const [userRows] = await db.query(
-    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
     [userId]
   );
   const user = mapUserRow(userRows[0]);

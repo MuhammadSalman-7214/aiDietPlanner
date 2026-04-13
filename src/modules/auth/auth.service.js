@@ -337,7 +337,10 @@ const updatePassword = async ({ userId, currentPassword, newPassword }) => {
     throw new AppError("New password must be different", 400);
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
-  await authRepo.updateUserById(user.id, { passwordHash });
+  await authRepo.updateUserById(user.id, {
+    passwordHash,
+    passwordChangedAt: new Date(),
+  });
 
   createAuditLog({
     userId: user.id,
@@ -413,6 +416,7 @@ const confirmPasswordReset = async ({ email, otp, newPassword }) => {
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await authRepo.updateUserById(user.id, {
     passwordHash,
+    passwordChangedAt: new Date(),
     passwordResetOtpHash: null,
     passwordResetExpiresAt: null,
     passwordResetLastSentAt: null,

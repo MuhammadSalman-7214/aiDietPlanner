@@ -58,7 +58,7 @@ const statusSchema = Joi.object({
 });
 
 router.get('/me', authMiddleware, userController.getProfile);
-router.patch(
+router.put(
   '/me',
   authMiddleware,
   handleProfileImageUpload,
