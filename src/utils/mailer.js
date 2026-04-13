@@ -45,4 +45,19 @@ const sendOtpEmail = async ({ to, name, otp, ttlMinutes }) => {
   return sendEmail({ to, subject, text, html });
 };
 
-module.exports = { sendEmail, sendOtpEmail };
+const sendPasswordResetEmail = async ({ to, name, otp, ttlMinutes }) => {
+  const subject = 'Reset your password';
+  const text = `Hi ${name || 'there'},\n\nUse this code to reset your password: ${otp}. It expires in ${ttlMinutes} minutes.\n\nIf you did not request this, you can ignore this email.`;
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height:1.5;">
+      <p>Hi ${name || 'there'},</p>
+      <p>Use this code to reset your password: <strong>${otp}</strong>.</p>
+      <p>This code expires in ${ttlMinutes} minutes.</p>
+      <p>If you did not request this, you can ignore this email.</p>
+    </div>
+  `;
+
+  return sendEmail({ to, subject, text, html });
+};
+
+module.exports = { sendEmail, sendOtpEmail, sendPasswordResetEmail };

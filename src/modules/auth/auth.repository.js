@@ -13,6 +13,13 @@ const mapRow = (row) => {
     emailOtpHash: row.email_otp_hash,
     emailOtpExpiresAt: row.email_otp_expires_at ? new Date(row.email_otp_expires_at) : null,
     emailOtpLastSentAt: row.email_otp_last_sent_at ? new Date(row.email_otp_last_sent_at) : null,
+    passwordResetOtpHash: row.password_reset_otp_hash,
+    passwordResetExpiresAt: row.password_reset_expires_at
+      ? new Date(row.password_reset_expires_at)
+      : null,
+    passwordResetLastSentAt: row.password_reset_last_sent_at
+      ? new Date(row.password_reset_last_sent_at)
+      : null,
     createdAt: row.created_at ? new Date(row.created_at) : null,
     updatedAt: row.updated_at ? new Date(row.updated_at) : null,
   };
@@ -36,6 +43,12 @@ const mapPendingRow = (row) => {
 const findByEmail = async (email) => {
   const db = getDb();
   const [rows] = await db.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+  return mapRow(rows[0]);
+};
+
+const findById = async (id) => {
+  const db = getDb();
+  const [rows] = await db.query('SELECT * FROM users WHERE id = ? LIMIT 1', [id]);
   return mapRow(rows[0]);
 };
 
@@ -112,6 +125,9 @@ const updateUserById = async (id, data) => {
     emailOtpHash: 'email_otp_hash',
     emailOtpExpiresAt: 'email_otp_expires_at',
     emailOtpLastSentAt: 'email_otp_last_sent_at',
+    passwordResetOtpHash: 'password_reset_otp_hash',
+    passwordResetExpiresAt: 'password_reset_expires_at',
+    passwordResetLastSentAt: 'password_reset_last_sent_at',
   };
 
   Object.entries(mapping).forEach(([key, column]) => {
@@ -166,6 +182,7 @@ const deletePendingById = async (id) => {
 };
 
 module.exports = {
+  findById,
   findByEmail,
   findPendingByEmail,
   createUser,

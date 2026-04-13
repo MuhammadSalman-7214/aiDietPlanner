@@ -181,6 +181,106 @@
       ]
     },
     {
+      "name": "Password Update",
+      "reason": "Update password for the authenticated user.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/password/update",
+        "body": {
+          "payload": {
+            "currentPassword": "secret123",
+            "newPassword": "newpass123"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "message": "Password updated successfully"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Password Reset Request",
+      "reason": "Request a password reset OTP via email.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/password/reset/request",
+        "body": {
+          "payload": {
+            "email": "jane@example.com"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "message": "If the account exists, a reset code has been sent."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Password Reset Confirm",
+      "reason": "Confirm OTP and set a new password.",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/password/reset/confirm",
+        "body": {
+          "payload": {
+            "email": "jane@example.com",
+            "otp": "123456",
+            "newPassword": "newpass123"
+          }
+        }
+      },
+      "response": [
+        {
+          "status": "OK",
+          "code": 200,
+          "data": {
+            "success": true,
+            "data": {
+              "message": "Password reset successfully"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "User Me",
       "reason": "Get the authenticated user profile.",
       "request": {
@@ -325,12 +425,8 @@
               "goal": "loss",
               "heightCm": 178,
               "weightKg": 74,
-              "mealPreferences": [
-                "high-protein"
-              ],
-              "mealAllergies": [
-                "peanuts"
-              ]
+              "mealPreferences": ["high-protein"],
+              "mealAllergies": ["peanuts"]
             }
           }
         }
@@ -338,7 +434,7 @@
     },
     {
       "name": "Health Create",
-      "reason": "Create combined health profile and stats.",
+      "reason": " ",
       "request": {
         "method": "POST",
         "header": [
@@ -360,12 +456,8 @@
             "goal": "maintain",
             "heightCm": 168,
             "weightKg": 65,
-            "mealPreferences": [
-              "balanced"
-            ],
-            "mealAllergies": [
-              "peanut"
-            ]
+            "mealPreferences": ["balanced"],
+            "mealAllergies": ["peanut"]
           }
         }
       },
@@ -383,12 +475,8 @@
               "goal": "loss",
               "heightCm": 178,
               "weightKg": 74,
-              "mealPreferences": [
-                "high-protein"
-              ],
-              "mealAllergies": [
-                "peanuts"
-              ]
+              "mealPreferences": ["high-protein"],
+              "mealAllergies": ["peanuts"]
             }
           }
         }
@@ -431,12 +519,8 @@
               "goal": "maintain",
               "heightCm": 178,
               "weightKg": 72,
-              "mealPreferences": [
-                "high-protein"
-              ],
-              "mealAllergies": [
-                "peanuts"
-              ]
+              "mealPreferences": ["high-protein"],
+              "mealAllergies": ["peanuts"]
             }
           }
         }
@@ -660,9 +744,7 @@
           "payload": {
             "calories": 2000,
             "dietType": "balanced",
-            "allergies": [
-              "peanut"
-            ],
+            "allergies": ["peanut"],
             "mealsCount": 4
           }
         }

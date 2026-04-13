@@ -8,7 +8,6 @@ const router = express.Router();
 
 const updateSchema = Joi.object({
   name: Joi.string().min(2).max(120),
-  password: Joi.string().min(6),
 });
 
 const profileSchema = Joi.object({
