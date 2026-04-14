@@ -1,4 +1,4 @@
-const userService = require('./user.service');
+const userService = require("./user.service");
 
 const getProfile = async (req, res, next) => {
   try {
@@ -12,7 +12,10 @@ const getProfile = async (req, res, next) => {
 const updateProfile = async (req, res, next) => {
   try {
     const user = await userService.updateProfile(req.user.id, req.body);
-    res.json({ success: true, data: user });
+    res.json({
+      success: true,
+      data: { message: "User profile updated successfully." },
+    });
   } catch (err) {
     next(err);
   }
@@ -92,7 +95,10 @@ const getHealthProfile = async (req, res, next) => {
 
 const createHealthProfile = async (req, res, next) => {
   try {
-    const profile = await userService.createHealthProfile(req.user.id, req.body);
+    const profile = await userService.createHealthProfile(
+      req.user.id,
+      req.body,
+    );
     res.status(201).json({ success: true, data: profile });
   } catch (err) {
     next(err);
@@ -101,7 +107,10 @@ const createHealthProfile = async (req, res, next) => {
 
 const updateHealthProfile = async (req, res, next) => {
   try {
-    const profile = await userService.updateHealthProfile(req.user.id, req.body);
+    const profile = await userService.updateHealthProfile(
+      req.user.id,
+      req.body,
+    );
     res.json({ success: true, data: profile });
   } catch (err) {
     next(err);
@@ -137,7 +146,9 @@ const deleteUserAccount = async (req, res, next) => {
 
 const getWeightHistory = async (req, res, next) => {
   try {
-    const start = req.query.start ? new Date(req.query.start) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const start = req.query.start
+      ? new Date(req.query.start)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const end = req.query.end ? new Date(req.query.end) : new Date();
     const data = await userService.listWeightLogs(req.user.id, start, end);
     res.json({ success: true, data });
