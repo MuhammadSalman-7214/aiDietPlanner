@@ -292,7 +292,10 @@ const swaggerDefinition = {
               'application/json': {
                 schema: {
                   type: 'object',
-                  properties: { success: { type: 'boolean' }, data: { $ref: '#/components/schemas/User' } },
+                  properties: {
+                    success: { type: 'boolean' },
+                    message: { type: 'string', example: 'User updated successfully' },
+                  },
                 },
               },
             },
