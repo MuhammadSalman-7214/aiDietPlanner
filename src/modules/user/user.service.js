@@ -1,5 +1,28 @@
+const fs = require('fs/promises');
+const path = require('path');
+const logger = require('../../utils/logger');
 const { AppError } = require('../../middlewares/error.middleware');
 const userRepo = require('./user.repository');
+
+const uploadsRoot = path.join(__dirname, '..', '..', '..', 'uploads');
+const profileImagesPrefix = '/uploads/profile-images/';
+
+const deleteProfileImageFile = async (profileImageUrl) => {
+  if (!profileImageUrl || typeof profileImageUrl !== 'string') return;
+  if (!profileImageUrl.startsWith(profileImagesPrefix)) return;
+
+  const resolvedUploadsRoot = `${path.resolve(uploadsRoot)}${path.sep}`;
+  const filePath = path.resolve(uploadsRoot, profileImageUrl.replace(/^\/uploads\//, ''));
+  if (!filePath.startsWith(resolvedUploadsRoot)) return;
+
+  try {
+    await fs.unlink(filePath);
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      logger.warn({ err, filePath }, 'Failed to delete previous profile image');
+    }
+  }
+};
 
 const getProfile = async (userId) => {
   const user = await userRepo.findById(userId);
@@ -8,8 +31,18 @@ const getProfile = async (userId) => {
 };
 
 const updateProfile = async (userId, payload) => {
+  const existingUser = await userRepo.findById(userId);
   const user = await userRepo.updateUser(userId, payload);
   if (!user) throw new AppError('User not found', 404);
+
+  if (
+    Object.prototype.hasOwnProperty.call(payload, 'profileImageUrl') &&
+    existingUser?.profileImageUrl &&
+    existingUser.profileImageUrl !== user.profileImageUrl
+  ) {
+    await deleteProfileImageFile(existingUser.profileImageUrl);
+  }
+
   return user;
 };
 
@@ -17,7 +50,13 @@ const updateUserStatus = async (userId, payload) => {
   if (!Object.prototype.hasOwnProperty.call(payload, 'isActive')) {
     throw new AppError('isActive is required', 400);
   }
-  const user = await userRepo.updateUser(userId, { isActive: payload.isActive });
+  const updates = { isActive: payload.isActive };
+  if (payload.isActive === false) {
+    updates.deactivatedAt = new Date();
+  } else if (payload.isActive === true) {
+    updates.deactivatedAt = null;
+  }
+  const user = await userRepo.updateUser(userId, updates);
   if (!user) throw new AppError('User not found', 404);
   return user;
 };
@@ -44,6 +83,7 @@ const getStats = async (userId) => {
     weightKg: null,
     mealPreferences: [],
     mealAllergies: [],
+    mealDislikes: [],
   };
 };
 
@@ -60,6 +100,9 @@ const buildStatsPayload = (payload) => {
   }
   if (Object.prototype.hasOwnProperty.call(payload, 'mealAllergies')) {
     statsPayload.mealAllergies = JSON.stringify(normalizeList(payload.mealAllergies));
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'mealDislikes')) {
+    statsPayload.mealDislikes = JSON.stringify(normalizeList(payload.mealDislikes));
   }
   return statsPayload;
 };
@@ -90,6 +133,7 @@ const createStats = async (userId, payload) => {
     weightKg: statsPayload.weightKg ?? null,
     mealPreferences: statsPayload.mealPreferences ?? JSON.stringify([]),
     mealAllergies: statsPayload.mealAllergies ?? JSON.stringify([]),
+    mealDislikes: statsPayload.mealDislikes ?? JSON.stringify([]),
   });
   if (statsPayload.weightKg !== undefined && statsPayload.weightKg !== null) {
     await userRepo.createWeightLog(userId, statsPayload.weightKg, new Date());
@@ -149,6 +193,7 @@ const getHealthData = async (userId) => {
     weightKg: stats ? stats.weightKg : null,
     mealPreferences: stats ? stats.mealPreferences : [],
     mealAllergies: stats ? stats.mealAllergies : [],
+    mealDislikes: stats ? stats.mealDislikes : [],
   };
 };
 
@@ -177,6 +222,7 @@ const createHealthData = async (userId, payload) => {
     weightKg: statsPayload.weightKg ?? null,
     mealPreferences: statsPayload.mealPreferences ?? JSON.stringify([]),
     mealAllergies: statsPayload.mealAllergies ?? JSON.stringify([]),
+    mealDislikes: statsPayload.mealDislikes ?? JSON.stringify([]),
   });
 
   if (statsPayload.weightKg !== undefined && statsPayload.weightKg !== null) {
@@ -217,6 +263,7 @@ const updateHealthData = async (userId, payload) => {
         weightKg: statsPayload.weightKg ?? null,
         mealPreferences: statsPayload.mealPreferences ?? JSON.stringify([]),
         mealAllergies: statsPayload.mealAllergies ?? JSON.stringify([]),
+        mealDislikes: statsPayload.mealDislikes ?? JSON.stringify([]),
       });
     }
   }
@@ -237,8 +284,14 @@ const exportUserData = async (userId) => {
 const deactivateUserAccount = async (userId) => {
   const user = await userRepo.findById(userId);
   if (!user) throw new AppError('User not found', 404);
-  const updated = await userRepo.updateUser(userId, { isActive: false });
-  return { message: 'Account deactivated', user: updated };
+  await userRepo.updateUser(userId, {
+    isActive: false,
+    deactivatedAt: new Date(),
+  });
+  return {
+    message: 'Account is deactivated',
+    // user: updated,
+  };
 };
 
 const deleteUserAccount = async (userId) => {

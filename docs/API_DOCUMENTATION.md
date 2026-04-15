@@ -175,8 +175,9 @@ Response:
 }
 ```
 
-**PATCH `/users/status`**  
-Purpose: Activate/inactivate user  
+<!--
+**PATCH `/users/status`**
+Purpose: Activate/inactivate user
 Payload:
 
 ```json
@@ -200,6 +201,7 @@ Response:
   }
 }
 ```
+-->
 
 ---
 
@@ -487,9 +489,8 @@ Response:
 }
 ```
 
-**DELETE `/users/data`**  
+**DELETE `/users/status`**  
 Purpose: Deactivate user account  
-Deprecated: Use `PATCH /users/status`  
 Payload: none  
 Response:
 
@@ -497,15 +498,7 @@ Response:
 {
   "success": true,
   "data": {
-    "message": "Account deactivated",
-    "user": {
-      "id": 1,
-      "name": "test",
-      "email": "test@example.com",
-      "isEmailVerified": true,
-      "isPremium": false,
-      "isActive": false
-    }
+    "message": "Account is deactivated"
   }
 }
 ```
@@ -610,20 +603,8 @@ Response:
 {
   "success": true,
   "data": {
-    "breakfast": { "items": [], "totals": {} },
-    "lunch": { "items": [], "totals": {} },
-    "dinner": { "items": [], "totals": {} },
-    "snacks": [],
-    "alternatives": {
-      "breakfast": [],
-      "lunch": [],
-      "dinner": [],
-      "snacks": []
-    },
-    "aiSuggestions": [],
-    "isPremiumPlan": false
-  },
-  "cached": false
+    "message": "Meal plan generated successfully."
+  }
 }
 ```
 

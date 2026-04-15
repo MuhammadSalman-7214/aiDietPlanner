@@ -15,10 +15,10 @@ const buildMealTargets = (calories, mealsCount) => {
   return { breakfast: calories * 0.25, lunch: calories * 0.3, dinner: calories * 0.3, snacks: [snack] };
 };
 
-const filterAllergies = (foods, allergies) => {
-  if (!allergies || allergies.length === 0) return foods;
-  const lower = allergies.map((a) => a.toLowerCase());
-  return foods.filter((food) => !lower.some((a) => food.name.toLowerCase().includes(a)));
+const filterExcludedFoods = (foods, allergies = [], dislikes = []) => {
+  const exclusions = [...allergies, ...dislikes].map((item) => String(item).toLowerCase()).filter(Boolean);
+  if (exclusions.length === 0) return foods;
+  return foods.filter((food) => !exclusions.some((item) => food.name.toLowerCase().includes(item)));
 };
 
 const pickFoodsForTarget = (foods, targetCalories) => {
@@ -52,9 +52,16 @@ const pickFoodsForTarget = (foods, targetCalories) => {
   return { items, totals };
 };
 
-const generateMealPlan = async ({ calories, dietType, allergies = [], mealsCount = 3, isPremium = false }) => {
+const generateMealPlan = async ({
+  calories,
+  dietType,
+  allergies = [],
+  mealDislikes = [],
+  mealsCount = 3,
+  isPremium = false,
+}) => {
   const foods = await mealRepo.findFoods(dietType && dietType !== 'any' ? { dietType } : {});
-  const safeFoods = filterAllergies(foods, allergies);
+  const safeFoods = filterExcludedFoods(foods, allergies, mealDislikes);
 
   const targets = buildMealTargets(calories, mealsCount);
 
@@ -78,13 +85,21 @@ const generateMealPlan = async ({ calories, dietType, allergies = [], mealsCount
   return { breakfast, lunch, dinner, snacks, alternatives, isPremiumPlan: isPremium };
 };
 
-const generateAIMealSuggestions = async ({ calories, dietType, isPremium }) => {
+const generateAIMealSuggestions = async ({
+  calories,
+  dietType,
+  isPremium,
+  allergies = [],
+  mealDislikes = [],
+}) => {
   if (!isPremium) return [];
   if (process.env.ENABLE_AI_MEAL_SUGGESTIONS !== 'true') return [];
 
+  const exclusions = [...allergies, ...mealDislikes].filter(Boolean);
   const prompt = `You are a nutrition assistant. Provide 2 meal suggestions for dietType: ${dietType}.
 Each suggestion must be JSON with keys: name, calories, protein, carbs, fats.
-Target calories per meal: ${Math.round(calories / 3)}.`;
+Target calories per meal: ${Math.round(calories / 3)}.
+Avoid ingredients/foods: ${exclusions.length ? exclusions.join(', ') : 'none'}.`;
 
   try {
     const client = getOpenAIClient();
@@ -107,9 +122,9 @@ Target calories per meal: ${Math.round(calories / 3)}.`;
   }
 };
 
-const getAlternatives = async ({ calories, dietType, allergies = [], mealType }) => {
+const getAlternatives = async ({ calories, dietType, allergies = [], mealDislikes = [], mealType }) => {
   const foods = await mealRepo.findFoods(dietType && dietType !== 'any' ? { dietType } : {});
-  const safeFoods = filterAllergies(foods, allergies);
+  const safeFoods = filterExcludedFoods(foods, allergies, mealDislikes);
   const pool = safeFoods.filter((food) => food.category === mealType);
   return pool.slice(0, 5);
 };

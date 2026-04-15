@@ -32,6 +32,16 @@ const ensureIndex = async (db, table, indexName, ddl) => {
   }
 };
 
+const renameTableIfExists = async (db, oldName, newName) => {
+  const [newRows] = await db.query("SHOW TABLES LIKE ?", [newName]);
+  if (newRows.length > 0) return;
+
+  const [oldRows] = await db.query("SHOW TABLES LIKE ?", [oldName]);
+  if (oldRows.length === 0) return;
+
+  await db.query(`RENAME TABLE \`${oldName}\` TO \`${newName}\``);
+};
+
 const ensureForeignKey = async (db, table, fkName, ddl) => {
   try {
     const [rows] = await db.query(
@@ -74,6 +84,7 @@ const ensureSchema = async (db) => {
       is_email_verified TINYINT(1) NOT NULL DEFAULT 0,
       is_premium TINYINT(1) NOT NULL DEFAULT 0,
       is_active TINYINT(1) NOT NULL DEFAULT 1,
+      deactivated_at DATETIME NULL,
       profile_image_url VARCHAR(2048) NULL,
       password_changed_at DATETIME NULL,
       email_otp_hash VARCHAR(255) NULL,
@@ -99,19 +110,22 @@ const ensureSchema = async (db) => {
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
-  `); // USER STATS
+  `); // USER NUTRITION PROFILES
+
+  await renameTableIfExists(db, "user_stats", "user_nutrition_profiles");
 
   await db.query(`
-    CREATE TABLE IF NOT EXISTS user_stats (
+    CREATE TABLE IF NOT EXISTS user_nutrition_profiles (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       user_id INT UNSIGNED NOT NULL UNIQUE,
       height_cm DECIMAL(5,2) NULL,
       weight_kg DECIMAL(5,2) NULL,
       meal_preferences TEXT NULL,
       meal_allergies TEXT NULL,
+      meal_dislikes TEXT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_user_stats_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      CONSTRAINT fk_user_nutrition_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `); // WEIGHT LOGS
 
@@ -257,6 +271,12 @@ const ensureSchema = async (db) => {
   await ensureColumn(
     db,
     "users",
+    "deactivated_at",
+    "`deactivated_at` DATETIME NULL",
+  );
+  await ensureColumn(
+    db,
+    "users",
     "profile_image_url",
     "`profile_image_url` VARCHAR(2048) NULL",
   );
@@ -326,6 +346,12 @@ const ensureSchema = async (db) => {
     "email_otp_last_sent_at",
     "`email_otp_last_sent_at` DATETIME NULL",
   );
+  await ensureColumn(
+    db,
+    "user_nutrition_profiles",
+    "meal_dislikes",
+    "`meal_dislikes` TEXT NULL",
+  );
 
   // Ensure indexes (safe for existing DBs)
   await ensureIndex(
@@ -374,9 +400,9 @@ const ensureSchema = async (db) => {
   // Ensure foreign keys (non-fatal if existing data violates)
   await ensureForeignKey(
     db,
-    "user_stats",
-    "fk_user_stats_user",
-    "fk_user_stats_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+    "user_nutrition_profiles",
+    "fk_user_nutrition_profiles_user",
+    "fk_user_nutrition_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
   );
   await ensureForeignKey(
     db,

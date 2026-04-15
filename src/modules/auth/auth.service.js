@@ -10,6 +10,7 @@ const OTP_TTL_MINUTES = Number(process.env.OTP_TTL_MINUTES || 10);
 const OTP_RESEND_COOLDOWN_SECONDS = Number(
   process.env.OTP_RESEND_COOLDOWN_SECONDS || 60,
 );
+const REACTIVATION_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 const normalizeEmail = (email) => email.trim().toLowerCase();
 
@@ -119,10 +120,24 @@ const register = async ({ name, email, password }) => {
 
 const login = async ({ email, password }) => {
   const normalizedEmail = normalizeEmail(email);
-  const user = await authRepo.findByEmail(normalizedEmail);
+  let user = await authRepo.findByEmail(normalizedEmail);
   if (!user) throw new AppError("User not found", 404);
   if (!user.isEmailVerified) throw new AppError("Email not verified", 403);
-  if (user.isActive === false) throw new AppError("Account is inactive", 403);
+  if (user.isActive === false) {
+    const deactivatedAtMs = user.deactivatedAt
+      ? user.deactivatedAt.getTime()
+      : null;
+    const canReactivate =
+      deactivatedAtMs !== null &&
+      Date.now() - deactivatedAtMs <= REACTIVATION_WINDOW_MS;
+    if (!canReactivate) {
+      throw new AppError("Account is inactive", 403);
+    }
+    user = await authRepo.updateUserById(user.id, {
+      isActive: true,
+      deactivatedAt: null,
+    });
+  }
 
   const match = await bcrypt.compare(password, user.passwordHash);
   if (!match) throw new AppError("Invalid credentials", 401);
@@ -339,7 +354,6 @@ const updatePassword = async ({ userId, currentPassword, newPassword }) => {
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await authRepo.updateUserById(user.id, {
     passwordHash,
-    passwordChangedAt: new Date(),
   });
 
   createAuditLog({
@@ -416,7 +430,6 @@ const confirmPasswordReset = async ({ email, otp, newPassword }) => {
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await authRepo.updateUserById(user.id, {
     passwordHash,
-    passwordChangedAt: new Date(),
     passwordResetOtpHash: null,
     passwordResetExpiresAt: null,
     passwordResetLastSentAt: null,

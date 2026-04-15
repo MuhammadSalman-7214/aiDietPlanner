@@ -6,7 +6,12 @@ const generateMealPlan = async (req, res, next) => {
     const cacheKey = `meal:${req.user?.id || 'guest'}:${JSON.stringify(req.body)}`;
     const cached = await getCache(cacheKey);
     if (cached) {
-      return res.json({ success: true, data: cached, cached: true });
+      return res.status(201).json({
+        success: true,
+        data: {
+          message: "Meal plan generated successfully.",
+        },
+      });
     }
 
     const payload = { ...req.body, isPremium: Boolean(req.user?.isPremium) };
@@ -16,7 +21,14 @@ const generateMealPlan = async (req, res, next) => {
     const data = { ...plan, aiSuggestions };
     await setCache(cacheKey, data, 3600);
 
-    return res.json({ success: true, data, cached: false });
+    // return res.json({ success: true, data, cached: false });
+
+    return res.status(201).json({
+      success: true,
+      data: {
+        message: "Meal plan generated successfully.",
+      },
+    });
   } catch (err) {
     return next(err);
   }

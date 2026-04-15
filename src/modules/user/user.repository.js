@@ -9,6 +9,7 @@ const mapUserRow = (row) => {
     isEmailVerified: Boolean(row.is_email_verified),
     isPremium: Boolean(row.is_premium),
     isActive: row.is_active === undefined ? true : Boolean(row.is_active),
+    deactivatedAt: row.deactivated_at ? new Date(row.deactivated_at) : null,
     profileImageUrl: row.profile_image_url || null,
     passwordChangedAt: row.password_changed_at ? new Date(row.password_changed_at) : null,
     createdAt: row.created_at ? new Date(row.created_at) : null,
@@ -25,15 +26,18 @@ const mapStatsRow = (row) => {
     weightKg: row.weight_kg,
     mealPreferences: row.meal_preferences ? JSON.parse(row.meal_preferences) : [],
     mealAllergies: row.meal_allergies ? JSON.parse(row.meal_allergies) : [],
+    mealDislikes: row.meal_dislikes ? JSON.parse(row.meal_dislikes) : [],
     createdAt: row.created_at ? new Date(row.created_at) : null,
     updatedAt: row.updated_at ? new Date(row.updated_at) : null,
   };
 };
 
+const USER_NUTRITION_TABLE = 'user_nutrition_profiles';
+
 const findById = async (id) => {
   const db = getDb();
   const [rows] = await db.query(
-    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, name, email, is_email_verified, is_premium, is_active, deactivated_at, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
     [id]
   );
   return mapUserRow(rows[0]);
@@ -48,6 +52,7 @@ const updateUser = async (id, data) => {
     name: 'name',
     passwordHash: 'password_hash',
     isActive: 'is_active',
+    deactivatedAt: 'deactivated_at',
     profileImageUrl: 'profile_image_url',
   };
 
@@ -61,7 +66,7 @@ const updateUser = async (id, data) => {
 
   if (!fields.length) {
     const [rows] = await db.query(
-      'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+      'SELECT id, name, email, is_email_verified, is_premium, is_active, deactivated_at, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
       [id]
     );
     return mapUserRow(rows[0]);
@@ -70,7 +75,7 @@ const updateUser = async (id, data) => {
   fields.push('updated_at = NOW()');
   await db.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, [...values, id]);
   const [rows] = await db.query(
-    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, name, email, is_email_verified, is_premium, is_active, deactivated_at, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
     [id]
   );
   return mapUserRow(rows[0]);
@@ -83,7 +88,10 @@ const deleteUserById = async (id) => {
 
 const getStatsByUserId = async (userId) => {
   const db = getDb();
-  const [rows] = await db.query('SELECT * FROM user_stats WHERE user_id = ? LIMIT 1', [userId]);
+  const [rows] = await db.query(
+    `SELECT * FROM ${USER_NUTRITION_TABLE} WHERE user_id = ? LIMIT 1`,
+    [userId],
+  );
   return mapStatsRow(rows[0]);
 };
 
@@ -150,7 +158,7 @@ const updateProfileData = async (userId, data) => {
 const exportUserData = async (userId) => {
   const db = getDb();
   const [userRows] = await db.query(
-    'SELECT id, name, email, is_email_verified, is_premium, is_active, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
+    'SELECT id, name, email, is_email_verified, is_premium, is_active, deactivated_at, profile_image_url, password_changed_at, created_at, updated_at FROM users WHERE id = ? LIMIT 1',
     [userId]
   );
   const user = mapUserRow(userRows[0]);
@@ -214,22 +222,27 @@ const createStats = async (userId, data) => {
     weightKg,
     mealPreferences,
     mealAllergies,
+    mealDislikes,
   } = data;
 
   await db.query(
-    `INSERT INTO user_stats
-      (user_id, height_cm, weight_kg, meal_preferences, meal_allergies, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
+    `INSERT INTO ${USER_NUTRITION_TABLE}
+      (user_id, height_cm, weight_kg, meal_preferences, meal_allergies, meal_dislikes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
     [
       userId,
       heightCm,
       weightKg,
       mealPreferences,
       mealAllergies,
+      mealDislikes,
     ]
   );
 
-  const [rows] = await db.query('SELECT * FROM user_stats WHERE user_id = ? LIMIT 1', [userId]);
+  const [rows] = await db.query(
+    `SELECT * FROM ${USER_NUTRITION_TABLE} WHERE user_id = ? LIMIT 1`,
+    [userId],
+  );
   return mapStatsRow(rows[0]);
 };
 
@@ -243,6 +256,7 @@ const updateStats = async (userId, data) => {
     weightKg: 'weight_kg',
     mealPreferences: 'meal_preferences',
     mealAllergies: 'meal_allergies',
+    mealDislikes: 'meal_dislikes',
   };
 
   Object.entries(mapping).forEach(([key, column]) => {
@@ -255,8 +269,14 @@ const updateStats = async (userId, data) => {
   if (!fields.length) return getStatsByUserId(userId);
 
   fields.push('updated_at = NOW()');
-  await db.query(`UPDATE user_stats SET ${fields.join(', ')} WHERE user_id = ?`, [...values, userId]);
-  const [rows] = await db.query('SELECT * FROM user_stats WHERE user_id = ? LIMIT 1', [userId]);
+  await db.query(
+    `UPDATE ${USER_NUTRITION_TABLE} SET ${fields.join(', ')} WHERE user_id = ?`,
+    [...values, userId],
+  );
+  const [rows] = await db.query(
+    `SELECT * FROM ${USER_NUTRITION_TABLE} WHERE user_id = ? LIMIT 1`,
+    [userId],
+  );
   return mapStatsRow(rows[0]);
 };
 

@@ -18,12 +18,6 @@ const authMiddleware = async (req, res, next) => {
     if (user.isActive === false) {
       return next(new AppError('Account is inactive', 403));
     }
-    if (user.passwordChangedAt) {
-      const tokenIatMs = (decoded.iat || 0) * 1000;
-      if (tokenIatMs && tokenIatMs < user.passwordChangedAt.getTime()) {
-        return next(new AppError('Token expired', 401));
-      }
-    }
     req.user = {
       ...decoded,
       isPremium: user.isPremium,

@@ -402,8 +402,9 @@
       ]
     },
     {
-      "name": "User Status",
-      "reason": "Activate or deactivate the authenticated user.",
+      "name": "User Status (Deprecated)",
+      "reason": "Deprecated. The active deactivation endpoint is DELETE /users/status.",
+      "disabled": true,
       "request": {
         "method": "PATCH",
         "header": [
@@ -438,134 +439,6 @@
               "isActive": false,
               "createdAt": "2026-04-03T10:00:00.000Z",
               "updatedAt": "2026-04-03T11:10:00.000Z"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Health Get",
-      "reason": "Fetch combined health profile and stats.",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{token}}"
-          }
-        ],
-        "url": "{{baseUrl}}/users/health"
-      },
-      "response": [
-        {
-          "status": "OK",
-          "code": 200,
-          "data": {
-            "success": true,
-            "data": {
-              "userId": 1,
-              "age": 28,
-              "gender": "male",
-              "activityLevel": "moderate",
-              "goal": "loss",
-              "heightCm": 178,
-              "weightKg": 74,
-              "mealPreferences": ["high-protein"],
-              "mealAllergies": ["peanuts"]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Health Create",
-      "reason": " ",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{token}}"
-          }
-        ],
-        "url": "{{baseUrl}}/users/health",
-        "body": {
-          "payload": {
-            "age": 28,
-            "gender": "female",
-            "activityLevel": "moderate",
-            "goal": "maintain",
-            "heightCm": 168,
-            "weightKg": 65,
-            "mealPreferences": ["balanced"],
-            "mealAllergies": ["peanut"]
-          }
-        }
-      },
-      "response": [
-        {
-          "status": "Created",
-          "code": 201,
-          "data": {
-            "success": true,
-            "data": {
-              "userId": 1,
-              "age": 28,
-              "gender": "male",
-              "activityLevel": "moderate",
-              "goal": "loss",
-              "heightCm": 178,
-              "weightKg": 74,
-              "mealPreferences": ["high-protein"],
-              "mealAllergies": ["peanuts"]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Health Update",
-      "reason": "Update combined health profile and stats.",
-      "request": {
-        "method": "PATCH",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          },
-          {
-            "key": "Authorization",
-            "value": "Bearer {{token}}"
-          }
-        ],
-        "url": "{{baseUrl}}/users/health",
-        "body": {
-          "payload": {
-            "goal": "loss",
-            "weightKg": 64
-          }
-        }
-      },
-      "response": [
-        {
-          "status": "OK",
-          "code": 200,
-          "data": {
-            "success": true,
-            "data": {
-              "userId": 1,
-              "age": 28,
-              "gender": "male",
-              "activityLevel": "moderate",
-              "goal": "maintain",
-              "heightCm": 178,
-              "weightKg": 72,
-              "mealPreferences": ["high-protein"],
-              "mealAllergies": ["peanuts"]
             }
           }
         }
@@ -663,7 +536,7 @@
             "value": "Bearer {{token}}"
           }
         ],
-        "url": "{{baseUrl}}/users/data"
+        "url": "{{baseUrl}}/users/status"
       },
       "response": [
         {
@@ -672,7 +545,7 @@
           "data": {
             "success": true,
             "data": {
-              "message": "Account deactivated"
+              "message": "Account is deactivated"
             }
           }
         }
@@ -849,34 +722,13 @@
       },
       "response": [
         {
-          "status": "OK",
-          "code": 200,
+          "status": "Created",
+          "code": 201,
           "data": {
             "success": true,
             "data": {
-              "breakfast": {
-                "items": [],
-                "totals": {}
-              },
-              "lunch": {
-                "items": [],
-                "totals": {}
-              },
-              "dinner": {
-                "items": [],
-                "totals": {}
-              },
-              "snacks": [],
-              "alternatives": {
-                "breakfast": [],
-                "lunch": [],
-                "dinner": [],
-                "snacks": []
-              },
-              "aiSuggestions": [],
-              "isPremiumPlan": false
-            },
-            "cached": false
+              "message": "Meal plan generated successfully."
+            }
           }
         }
       ]

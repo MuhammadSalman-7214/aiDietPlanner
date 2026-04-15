@@ -69,7 +69,13 @@ const getStats = async (req, res, next) => {
 const createStats = async (req, res, next) => {
   try {
     const stats = await userService.createStats(req.user.id, req.body);
-    res.status(201).json({ success: true, data: stats });
+    res.status(201).json({
+      success: true,
+      data: {
+        ...stats,
+        message: "User nutrition profile created successfully.",
+      },
+    });
   } catch (err) {
     next(err);
   }
