@@ -15,16 +15,13 @@ const updateSchema = Joi.object({
   profileImageUrl: Joi.string().max(2048).allow(null),
 }).min(1);
 
-const profileSchema = Joi.object({
+const nutritionSchema = Joi.object({
   age: Joi.number().min(10).max(120).allow(null),
   gender: Joi.string().valid("male", "female").allow(null),
   activityLevel: Joi.string()
     .valid("sedentary", "light", "moderate", "active", "very_active")
     .allow(null),
   goal: Joi.string().valid("loss", "gain", "maintain").allow(null),
-}).min(1);
-
-const statsSchema = Joi.object({
   heightCm: Joi.number().min(50).max(300).allow(null),
   weightKg: Joi.number().min(10).max(500).allow(null),
   mealPreferences: Joi.alternatives().try(
@@ -64,26 +61,26 @@ router.get("/profile", authMiddleware, userController.getHealthProfile);
 router.post(
   "/profile",
   authMiddleware,
-  validateRequest(profileSchema),
+  validateRequest(nutritionSchema),
   userController.createHealthProfile,
 );
 router.patch(
   "/profile",
   authMiddleware,
-  validateRequest(profileSchema),
+  validateRequest(nutritionSchema),
   userController.updateHealthProfile,
 );
 router.get("/stats", authMiddleware, userController.getStats);
 router.post(
   "/stats",
   authMiddleware,
-  validateRequest(statsSchema),
+  validateRequest(nutritionSchema),
   userController.createStats,
 );
 router.patch(
   "/stats",
   authMiddleware,
-  validateRequest(statsSchema),
+  validateRequest(nutritionSchema),
   userController.updateStats,
 );
 router.get("/data/export", authMiddleware, userController.exportUserData);

@@ -22,6 +22,10 @@ const mapStatsRow = (row) => {
   return {
     id: row.id,
     userId: row.user_id,
+    age: row.age,
+    gender: row.gender,
+    activityLevel: row.activity_level,
+    goal: row.goal,
     heightCm: row.height_cm,
     weightKg: row.weight_kg,
     mealPreferences: row.meal_preferences ? JSON.parse(row.meal_preferences) : [],
@@ -96,35 +100,52 @@ const getStatsByUserId = async (userId) => {
 };
 
 const mapProfileRow = (row) => {
-  if (!row) return null;
-  return {
-    id: row.id,
-    userId: row.user_id,
-    age: row.age,
-    gender: row.gender,
-    activityLevel: row.activity_level,
-    goal: row.goal,
-    createdAt: row.created_at ? new Date(row.created_at) : null,
-    updatedAt: row.updated_at ? new Date(row.updated_at) : null,
-  };
+  return mapStatsRow(row);
 };
 
 const getProfileByUserId = async (userId) => {
   const db = getDb();
-  const [rows] = await db.query('SELECT * FROM user_profiles WHERE user_id = ? LIMIT 1', [userId]);
+  const [rows] = await db.query(
+    `SELECT * FROM ${USER_NUTRITION_TABLE} WHERE user_id = ? LIMIT 1`,
+    [userId],
+  );
   return mapProfileRow(rows[0]);
 };
 
 const createProfile = async (userId, data) => {
   const db = getDb();
-  const { age, gender, activityLevel, goal } = data;
-  const [result] = await db.query(
-    `INSERT INTO user_profiles
-      (user_id, age, gender, activity_level, goal, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-    [userId, age, gender, activityLevel, goal]
+  const {
+    age,
+    gender,
+    activityLevel,
+    goal,
+    heightCm,
+    weightKg,
+    mealPreferences,
+    mealAllergies,
+    mealDislikes,
+  } = data;
+  await db.query(
+    `INSERT INTO ${USER_NUTRITION_TABLE}
+      (user_id, age, gender, activity_level, goal, height_cm, weight_kg, meal_preferences, meal_allergies, meal_dislikes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+    [
+      userId,
+      age,
+      gender,
+      activityLevel,
+      goal,
+      heightCm,
+      weightKg,
+      mealPreferences,
+      mealAllergies,
+      mealDislikes,
+    ]
   );
-  const [rows] = await db.query('SELECT * FROM user_profiles WHERE id = ? LIMIT 1', [result.insertId]);
+  const [rows] = await db.query(
+    `SELECT * FROM ${USER_NUTRITION_TABLE} WHERE user_id = ? LIMIT 1`,
+    [userId],
+  );
   return mapProfileRow(rows[0]);
 };
 
@@ -138,6 +159,11 @@ const updateProfileData = async (userId, data) => {
     gender: 'gender',
     activityLevel: 'activity_level',
     goal: 'goal',
+    heightCm: 'height_cm',
+    weightKg: 'weight_kg',
+    mealPreferences: 'meal_preferences',
+    mealAllergies: 'meal_allergies',
+    mealDislikes: 'meal_dislikes',
   };
 
   Object.entries(mapping).forEach(([key, column]) => {
@@ -150,8 +176,14 @@ const updateProfileData = async (userId, data) => {
   if (!fields.length) return getProfileByUserId(userId);
 
   fields.push('updated_at = NOW()');
-  await db.query(`UPDATE user_profiles SET ${fields.join(', ')} WHERE user_id = ?`, [...values, userId]);
-  const [rows] = await db.query('SELECT * FROM user_profiles WHERE user_id = ? LIMIT 1', [userId]);
+  await db.query(
+    `UPDATE ${USER_NUTRITION_TABLE} SET ${fields.join(', ')} WHERE user_id = ?`,
+    [...values, userId],
+  );
+  const [rows] = await db.query(
+    `SELECT * FROM ${USER_NUTRITION_TABLE} WHERE user_id = ? LIMIT 1`,
+    [userId],
+  );
   return mapProfileRow(rows[0]);
 };
 
@@ -218,6 +250,10 @@ const mapProgressRowForExport = (row) => ({
 const createStats = async (userId, data) => {
   const db = getDb();
   const {
+    age,
+    gender,
+    activityLevel,
+    goal,
     heightCm,
     weightKg,
     mealPreferences,
@@ -227,10 +263,14 @@ const createStats = async (userId, data) => {
 
   await db.query(
     `INSERT INTO ${USER_NUTRITION_TABLE}
-      (user_id, height_cm, weight_kg, meal_preferences, meal_allergies, meal_dislikes, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      (user_id, age, gender, activity_level, goal, height_cm, weight_kg, meal_preferences, meal_allergies, meal_dislikes, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
     [
       userId,
+      age,
+      gender,
+      activityLevel,
+      goal,
       heightCm,
       weightKg,
       mealPreferences,
@@ -252,6 +292,10 @@ const updateStats = async (userId, data) => {
   const values = [];
 
   const mapping = {
+    age: 'age',
+    gender: 'gender',
+    activityLevel: 'activity_level',
+    goal: 'goal',
     heightCm: 'height_cm',
     weightKg: 'weight_kg',
     mealPreferences: 'meal_preferences',

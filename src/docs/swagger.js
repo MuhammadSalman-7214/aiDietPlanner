@@ -60,18 +60,19 @@ const swaggerDefinition = {
           updatedAt: { type: "string", format: "date-time" },
         },
       },
-      HealthData: {
+      StatsData: {
         type: "object",
         properties: {
-          userId: { type: "integer", example: 1 },
+          id: { type: "integer", example: 3 },
+          userId: { type: "integer", example: 27 },
           age: { type: "integer", nullable: true, example: 28 },
-          gender: { type: "string", nullable: true, example: "male" },
+          gender: { type: "string", nullable: true, example: "female" },
           activityLevel: {
             type: "string",
             nullable: true,
             example: "moderate",
           },
-          goal: { type: "string", nullable: true, example: "loss" },
+          goal: { type: "string", nullable: true, example: "maintain" },
           heightCm: { type: "number", nullable: true, example: 178 },
           weightKg: { type: "number", nullable: true, example: 74 },
           mealPreferences: {
@@ -89,6 +90,8 @@ const swaggerDefinition = {
             items: { type: "string" },
             example: ["okra"],
           },
+          createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" },
         },
       },
       HealthPayload: {
@@ -417,9 +420,17 @@ const swaggerDefinition = {
                   type: "object",
                   properties: {
                     success: { type: "boolean" },
-                    data: { $ref: "#/components/schemas/HealthData" },
+                    data: { $ref: "#/components/schemas/StatsData" },
                   },
                 },
+              },
+            },
+          },
+          401: {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
               },
             },
           },
@@ -446,9 +457,17 @@ const swaggerDefinition = {
                   type: "object",
                   properties: {
                     success: { type: "boolean" },
-                    data: { $ref: "#/components/schemas/HealthData" },
+                    data: { $ref: "#/components/schemas/StatsData" },
                   },
                 },
+              },
+            },
+          },
+          401: {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
               },
             },
           },
@@ -475,9 +494,17 @@ const swaggerDefinition = {
                   type: "object",
                   properties: {
                     success: { type: "boolean" },
-                    data: { $ref: "#/components/schemas/HealthData" },
+                    data: { $ref: "#/components/schemas/StatsData" },
                   },
                 },
+              },
+            },
+          },
+          401: {
+            description: "Unauthorized",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
               },
             },
           },

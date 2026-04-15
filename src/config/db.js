@@ -118,6 +118,10 @@ const ensureSchema = async (db) => {
     CREATE TABLE IF NOT EXISTS user_nutrition_profiles (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       user_id INT UNSIGNED NOT NULL UNIQUE,
+      age INT NULL,
+      gender ENUM('male','female') NULL,
+      activity_level ENUM('sedentary','light','moderate','active','very_active') NULL,
+      goal ENUM('loss','gain','maintain') NULL,
       height_cm DECIMAL(5,2) NULL,
       weight_kg DECIMAL(5,2) NULL,
       meal_preferences TEXT NULL,
@@ -154,6 +158,26 @@ const ensureSchema = async (db) => {
       CONSTRAINT fk_user_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `); // FOODS
+
+  await ensureColumn(db, "user_nutrition_profiles", "age", "`age` INT NULL");
+  await ensureColumn(
+    db,
+    "user_nutrition_profiles",
+    "gender",
+    "`gender` ENUM('male','female') NULL",
+  );
+  await ensureColumn(
+    db,
+    "user_nutrition_profiles",
+    "activity_level",
+    "`activity_level` ENUM('sedentary','light','moderate','active','very_active') NULL",
+  );
+  await ensureColumn(
+    db,
+    "user_nutrition_profiles",
+    "goal",
+    "`goal` ENUM('loss','gain','maintain') NULL",
+  );
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS foods (
@@ -352,6 +376,32 @@ const ensureSchema = async (db) => {
     "meal_dislikes",
     "`meal_dislikes` TEXT NULL",
   );
+
+  await db.query(`
+    UPDATE user_nutrition_profiles np
+    INNER JOIN user_profiles up ON up.user_id = np.user_id
+    SET
+      np.age = COALESCE(np.age, up.age),
+      np.gender = COALESCE(np.gender, up.gender),
+      np.activity_level = COALESCE(np.activity_level, up.activity_level),
+      np.goal = COALESCE(np.goal, up.goal)
+  `);
+
+  await db.query(`
+    INSERT INTO user_nutrition_profiles
+      (user_id, age, gender, activity_level, goal, created_at, updated_at)
+    SELECT
+      up.user_id,
+      up.age,
+      up.gender,
+      up.activity_level,
+      up.goal,
+      NOW(),
+      NOW()
+    FROM user_profiles up
+    LEFT JOIN user_nutrition_profiles np ON np.user_id = up.user_id
+    WHERE np.user_id IS NULL
+  `);
 
   // Ensure indexes (safe for existing DBs)
   await ensureIndex(

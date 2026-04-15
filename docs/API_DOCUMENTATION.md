@@ -287,7 +287,8 @@ Response:
     "heightCm": 178,
     "weightKg": 72,
     "mealPreferences": ["high-protein"],
-    "mealAllergies": ["peanuts"]
+    "mealAllergies": ["peanuts"],
+    "mealDislikes": ["okra"]
   }
 }
 ```
@@ -299,7 +300,7 @@ Response:
 Deprecated: Use `/users/health`.
 
 **GET `/users/profile`**  
-Purpose: Get health profile (age, gender, activity, goal)  
+Purpose: Get the full nutrition profile  
 Payload: none  
 Response:
 
@@ -311,17 +312,32 @@ Response:
     "age": 28,
     "gender": "male",
     "activityLevel": "moderate",
-    "goal": "loss"
+    "goal": "loss",
+    "heightCm": 178,
+    "weightKg": 72,
+    "mealPreferences": ["high-protein"],
+    "mealAllergies": ["peanuts"],
+    "mealDislikes": ["okra"]
   }
 }
 ```
 
 **POST `/users/profile`**  
-Purpose: Create health profile  
+Purpose: Create the full nutrition profile  
 Payload:
 
 ```json
-{ "age": 28, "gender": "male", "activityLevel": "moderate", "goal": "loss" }
+{
+  "age": 28,
+  "gender": "male",
+  "activityLevel": "moderate",
+  "goal": "loss",
+  "heightCm": 178,
+  "weightKg": 72,
+  "mealPreferences": ["high-protein"],
+  "mealAllergies": ["peanuts"],
+  "mealDislikes": ["okra"]
+}
 ```
 
 Response (201):
@@ -335,17 +351,27 @@ Response (201):
     "age": 28,
     "gender": "male",
     "activityLevel": "moderate",
-    "goal": "loss"
+    "goal": "loss",
+    "heightCm": 178,
+    "weightKg": 72,
+    "mealPreferences": ["high-protein"],
+    "mealAllergies": ["peanuts"],
+    "mealDislikes": ["okra"],
+    "createdAt": "2026-04-03T10:00:00.000Z",
+    "updatedAt": "2026-04-03T10:00:00.000Z"
   }
 }
 ```
 
 **PATCH `/users/profile`**  
-Purpose: Update health profile  
+Purpose: Update the full nutrition profile  
 Payload:
 
 ```json
-{ "goal": "maintain" }
+{
+  "goal": "maintain",
+  "weightKg": 70
+}
 ```
 
 Response:
@@ -359,7 +385,12 @@ Response:
     "age": 28,
     "gender": "male",
     "activityLevel": "moderate",
-    "goal": "maintain"
+    "goal": "maintain",
+    "heightCm": 178,
+    "weightKg": 70,
+    "mealPreferences": ["high-protein"],
+    "mealAllergies": ["peanuts"],
+    "mealDislikes": ["okra"]
   }
 }
 ```
@@ -371,7 +402,7 @@ Response:
 Deprecated: Use `/users/health`.
 
 **GET `/users/stats`**  
-Purpose: Get stats (height, weight, preferences, allergies)  
+Purpose: Get the full nutrition profile  
 Payload: none  
 Response:
 
@@ -380,24 +411,34 @@ Response:
   "success": true,
   "data": {
     "userId": 1,
+    "age": 28,
+    "gender": "male",
+    "activityLevel": "moderate",
+    "goal": "maintain",
     "heightCm": 178,
     "weightKg": 74,
     "mealPreferences": ["high-protein"],
-    "mealAllergies": ["peanuts"]
+    "mealAllergies": ["peanuts"],
+    "mealDislikes": ["okra"]
   }
 }
 ```
 
 **POST `/users/stats`**  
-Purpose: Create stats (first time)  
+Purpose: Create the full nutrition profile (first time)  
 Payload:
 
 ```json
 {
+  "age": 28,
+  "gender": "male",
+  "activityLevel": "moderate",
+  "goal": "maintain",
   "heightCm": 178,
   "weightKg": 74,
   "mealPreferences": ["high-protein"],
-  "mealAllergies": ["peanuts"]
+  "mealAllergies": ["peanuts"],
+  "mealDislikes": ["okra"]
 }
 ```
 
@@ -409,10 +450,15 @@ Response (201):
   "data": {
     "id": 1,
     "userId": 1,
+    "age": 28,
+    "gender": "male",
+    "activityLevel": "moderate",
+    "goal": "maintain",
     "heightCm": 178,
     "weightKg": 74,
     "mealPreferences": ["high-protein"],
     "mealAllergies": ["peanuts"],
+    "mealDislikes": ["okra"],
     "createdAt": "2026-04-03T10:00:00.000Z",
     "updatedAt": "2026-04-03T10:00:00.000Z"
   }
@@ -420,11 +466,15 @@ Response (201):
 ```
 
 **PATCH `/users/stats`**  
-Purpose: Update stats  
+Purpose: Update the full nutrition profile  
 Payload:
 
 ```json
-{ "weightKg": 72 }
+{
+  "age": 28,
+  "goal": "maintain",
+  "weightKg": 72
+}
 ```
 
 Response:
@@ -435,10 +485,15 @@ Response:
   "data": {
     "id": 1,
     "userId": 1,
+    "age": 28,
+    "gender": "male",
+    "activityLevel": "moderate",
+    "goal": "maintain",
     "heightCm": 178,
     "weightKg": 72,
     "mealPreferences": ["high-protein"],
-    "mealAllergies": ["peanuts"]
+    "mealAllergies": ["peanuts"],
+    "mealDislikes": ["okra"]
   }
 }
 ```
