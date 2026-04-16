@@ -713,9 +713,9 @@
         "url": "{{baseUrl}}/meals/generate",
         "body": {
           "payload": {
-            "calories": 2000,
             "dietType": "balanced",
             "allergies": ["peanut"],
+            "mealDislikes": ["okra"],
             "mealsCount": 4
           }
         }
@@ -727,7 +727,61 @@
           "data": {
             "success": true,
             "data": {
-              "message": "Meal plan generated successfully."
+              "nutrition": {
+                "source": "user_profile",
+                "targetCalories": 2000,
+                "macros": {
+                  "protein": 150,
+                  "carbs": 225,
+                  "fats": 67
+                },
+                "mealPreferences": [],
+                "mealAllergies": ["peanut"],
+                "mealDislikes": ["okra"],
+                "mealsCount": 4
+              },
+              "mealTargets": {
+                "breakfast": 500,
+                "lunch": 600,
+                "dinner": 600,
+                "snacks": [300]
+              },
+              "breakfast": {
+                "items": [],
+                "totals": {
+                  "calories": 0,
+                  "protein": 0,
+                  "carbs": 0,
+                  "fats": 0
+                }
+              },
+              "lunch": {
+                "items": [],
+                "totals": {
+                  "calories": 0,
+                  "protein": 0,
+                  "carbs": 0,
+                  "fats": 0
+                }
+              },
+              "dinner": {
+                "items": [],
+                "totals": {
+                  "calories": 0,
+                  "protein": 0,
+                  "carbs": 0,
+                  "fats": 0
+                }
+              },
+              "snacks": [],
+              "alternatives": {
+                "breakfast": [],
+                "lunch": [],
+                "dinner": [],
+                "snacks": []
+              },
+              "aiSuggestions": [],
+              "cached": false
             }
           }
         }
@@ -751,7 +805,6 @@
         "url": "{{baseUrl}}/meals/alternatives",
         "body": {
           "payload": {
-            "calories": 2000,
             "dietType": "any",
             "allergies": [],
             "mealType": "lunch"

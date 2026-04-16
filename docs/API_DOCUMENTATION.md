@@ -645,9 +645,9 @@ Payload:
 
 ```json
 {
-  "calories": 2000,
   "dietType": "any",
   "allergies": ["peanuts"],
+  "mealDislikes": ["okra"],
   "mealsCount": 3
 }
 ```
@@ -658,7 +658,28 @@ Response:
 {
   "success": true,
   "data": {
-    "message": "Meal plan generated successfully."
+    "nutrition": {
+      "source": "user_profile",
+      "targetCalories": 2000,
+      "macros": { "protein": 150, "carbs": 225, "fats": 67 },
+      "mealPreferences": [],
+      "mealAllergies": ["peanuts"],
+      "mealDislikes": ["okra"],
+      "mealsCount": 3
+    },
+    "mealTargets": {
+      "breakfast": 600,
+      "lunch": 700,
+      "dinner": 700,
+      "snacks": []
+    },
+    "breakfast": { "items": [], "totals": { "calories": 0, "protein": 0, "carbs": 0, "fats": 0 } },
+    "lunch": { "items": [], "totals": { "calories": 0, "protein": 0, "carbs": 0, "fats": 0 } },
+    "dinner": { "items": [], "totals": { "calories": 0, "protein": 0, "carbs": 0, "fats": 0 } },
+    "snacks": [],
+    "alternatives": { "breakfast": [], "lunch": [], "dinner": [], "snacks": [] },
+    "aiSuggestions": [],
+    "cached": false
   }
 }
 ```
@@ -668,7 +689,7 @@ Purpose: Get replacement options
 Payload:
 
 ```json
-{ "calories": 2000, "dietType": "any", "allergies": [], "mealType": "lunch" }
+{ "dietType": "any", "allergies": [], "mealDislikes": [], "mealType": "lunch" }
 ```
 
 Response:

@@ -26,9 +26,10 @@ const detectIntent = (message) => {
 
 const buildResponse = (intent, response) => ({ intent, response });
 
-const handleMealGeneration = async (isPremium) => {
+const handleMealGeneration = async ({ userId, isPremium }) => {
   const plan = await mealService.generateMealPlan({
-    calories: 2000,
+    userId,
+    calories: userId ? undefined : 2000,
     dietType: 'any',
     mealsCount: 3,
     isPremium,
@@ -36,9 +37,10 @@ const handleMealGeneration = async (isPremium) => {
   return buildResponse('meal_generation', plan);
 };
 
-const handleMealReplacement = async (isPremium) => {
+const handleMealReplacement = async ({ userId, isPremium }) => {
   const plan = await mealService.generateMealPlan({
-    calories: 2000,
+    userId,
+    calories: userId ? undefined : 2000,
     dietType: 'any',
     mealsCount: 3,
     isPremium,
@@ -128,8 +130,8 @@ const chat = async ({ message, userId, isPremium }) => {
   const normalized = normalizeMessage(message);
   const intent = detectIntent(normalized);
 
-  if (intent === 'meal_generation') return handleMealGeneration(isPremium);
-  if (intent === 'meal_replacement') return handleMealReplacement(isPremium);
+  if (intent === 'meal_generation') return handleMealGeneration({ userId, isPremium });
+  if (intent === 'meal_replacement') return handleMealReplacement({ userId, isPremium });
   if (intent === 'nutrition_query') return handleNutritionQuery(userId);
   return handleRecipeRequest(normalized);
 };

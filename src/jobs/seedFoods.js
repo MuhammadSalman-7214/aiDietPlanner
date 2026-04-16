@@ -1,7 +1,5 @@
-require('dotenv').config();
 const { connectDB } = require('../config/db');
-const Food = require('../modules/meal/meal.model');
-const logger = require('../utils/logger');
+const { createFood } = require('../modules/meal/meal.repository');
 
 const seedFoods = [
   { name: 'Oatmeal with Berries', calories: 320, protein: 12, carbs: 50, fats: 8, category: 'breakfast', dietType: 'vegetarian' },
@@ -17,15 +15,29 @@ const seedFoods = [
   { name: 'Apple with Peanut Butter', calories: 200, protein: 6, carbs: 22, fats: 10, category: 'snack', dietType: 'vegetarian' },
 ];
 
-(async () => {
-  try {
-    await connectDB();
-    await Food.deleteMany({});
-    await Food.insertMany(seedFoods);
-    logger.info('Food seed complete');
-    process.exit(0);
-  } catch (err) {
-    logger.error({ err }, 'Seeding failed');
-    process.exit(1);
+const seed = async () => {
+  await connectDB();
+
+  let inserted = 0;
+  for (const food of seedFoods) {
+    await createFood({
+      ...food,
+      dietType: food.dietType || 'any',
+    });
+    inserted += 1;
   }
-})();
+
+  console.log(`Static foods seeded: ${inserted} inserted`);
+  return { inserted };
+};
+
+if (require.main === module) {
+  seed()
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('Static food seed failed:', err);
+      process.exit(1);
+    });
+}
+
+module.exports = { seedFoods: seed };

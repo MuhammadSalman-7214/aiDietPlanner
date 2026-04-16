@@ -7,7 +7,8 @@ const Joi = require('joi');
 const router = express.Router();
 
 const generateSchema = Joi.object({
-  calories: Joi.number().min(800).max(6000).required(),
+  calories: Joi.number().min(800).max(6000),
+  targetCalories: Joi.number().min(800).max(6000),
   dietType: Joi.string().default('any'),
   allergies: Joi.array().items(Joi.string()).default([]),
   mealDislikes: Joi.array().items(Joi.string()).default([]),
@@ -15,7 +16,8 @@ const generateSchema = Joi.object({
 });
 
 const alternativesSchema = Joi.object({
-  calories: Joi.number().min(800).max(6000).required(),
+  calories: Joi.number().min(800).max(6000),
+  targetCalories: Joi.number().min(800).max(6000),
   dietType: Joi.string().default('any'),
   allergies: Joi.array().items(Joi.string()).default([]),
   mealDislikes: Joi.array().items(Joi.string()).default([]),
