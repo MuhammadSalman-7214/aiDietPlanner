@@ -3,6 +3,7 @@ const path = require('path');
 const logger = require('../../utils/logger');
 const { AppError } = require('../../middlewares/error.middleware');
 const userRepo = require('./user.repository');
+const mealService = require('../meal/meal.service');
 
 const uploadsRoot = path.join(__dirname, '..', '..', '..', 'uploads');
 const profileImagesPrefix = '/uploads/profile-images/';
@@ -125,6 +126,26 @@ const buildNutritionPayload = (payload) => {
   return nutritionPayload;
 };
 
+const tryGenerateMealPlan = async (userId) => {
+  try {
+    const plan = await mealService.generateAndStoreMealPlan({ userId });
+    return {
+      generated: true,
+      planId: plan.id,
+    };
+  } catch (err) {
+    if (err instanceof AppError && [404, 422].includes(err.statusCode)) {
+      logger.warn({ userId, err }, 'Meal plan generation skipped after stats save');
+      return {
+        generated: false,
+        reason: err.message,
+      };
+    }
+
+    throw err;
+  }
+};
+
 const createStats = async (userId, payload) => {
   const existing = await userRepo.getStatsByUserId(userId);
   if (existing) throw new AppError('Stats already exist', 409);
@@ -143,6 +164,7 @@ const createStats = async (userId, payload) => {
   if (statsPayload.weightKg !== undefined && statsPayload.weightKg !== null) {
     await userRepo.createWeightLog(userId, statsPayload.weightKg, new Date());
   }
+  await tryGenerateMealPlan(userId);
   return stats;
 };
 
@@ -154,6 +176,7 @@ const updateStats = async (userId, payload) => {
   if (Object.prototype.hasOwnProperty.call(statsPayload, 'weightKg') && statsPayload.weightKg !== null) {
     await userRepo.createWeightLog(userId, statsPayload.weightKg, new Date());
   }
+  await tryGenerateMealPlan(userId);
   return stats;
 };
 

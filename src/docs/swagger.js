@@ -22,13 +22,9 @@ const swaggerDefinition = {
     },
   ],
   tags: [
-    { name: "Health" },
     { name: "Auth" },
     { name: "Users" },
-    { name: "Diet" },
     { name: "Meals" },
-    { name: "Nutrition" },
-    { name: "Chatbot" },
   ],
   components: {
     securitySchemes: {
@@ -109,53 +105,6 @@ const swaggerDefinition = {
           },
           createdAt: { type: "string", format: "date-time" },
           updatedAt: { type: "string", format: "date-time" },
-        },
-      },
-      DietCalcInput: {
-        type: "object",
-        required: [
-          "age",
-          "gender",
-          "weight",
-          "height",
-          "activityLevel",
-          "goal",
-        ],
-        properties: {
-          age: { type: "integer", example: 28 },
-          gender: {
-            type: "string",
-            enum: ["male", "female"],
-            example: "female",
-          },
-          weight: { type: "number", example: 65 },
-          height: { type: "number", example: 168 },
-          activityLevel: {
-            type: "string",
-            enum: ["sedentary", "light", "moderate", "active", "very_active"],
-            example: "moderate",
-          },
-          goal: {
-            type: "string",
-            enum: ["loss", "gain", "maintain"],
-            example: "maintain",
-          },
-        },
-      },
-      DietCalcResult: {
-        type: "object",
-        properties: {
-          bmr: { type: "integer", example: 1424 },
-          tdee: { type: "integer", example: 2200 },
-          targetCalories: { type: "integer", example: 2000 },
-          macros: {
-            type: "object",
-            properties: {
-              protein: { type: "integer", example: 150 },
-              carbs: { type: "integer", example: 225 },
-              fats: { type: "integer", example: 67 },
-            },
-          },
         },
       },
       MealFoodItem: {
@@ -259,6 +208,15 @@ const swaggerDefinition = {
           cached: { type: "boolean", example: false },
         },
       },
+      SavedMealPlan: {
+        type: "object",
+        properties: {
+          id: { type: "integer", example: 18 },
+          userId: { type: "integer", example: 27 },
+          createdAt: { type: "string", format: "date-time" },
+          plan: { $ref: "#/components/schemas/MealPlan" },
+        },
+      },
       HealthPayload: {
         type: "object",
         properties: {
@@ -289,49 +247,9 @@ const swaggerDefinition = {
           },
         },
       },
-      MealGenerationInput: {
-        type: "object",
-        properties: {
-          mealsCount: { type: "integer", enum: [3, 4, 5], example: 3 },
-        },
-      },
-      MealAlternativesInput: {
-        type: "object",
-        required: ["mealType"],
-        properties: {
-          mealType: {
-            type: "string",
-            enum: ["breakfast", "lunch", "dinner", "snack"],
-            example: "lunch",
-          },
-        },
-      },
     },
   },
   paths: {
-    "/health": {
-      get: {
-        tags: ["Health"],
-        summary: "Health check",
-        responses: {
-          200: {
-            description: "Service is healthy",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean", example: true },
-                    status: { type: "string", example: "ok" },
-                    timestamp: { type: "string", format: "date-time" },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
     "/auth/register": {
       post: {
         tags: ["Auth"],
@@ -526,59 +444,6 @@ const swaggerDefinition = {
         },
       },
     },
-    "/users/profile": {
-      get: {
-        tags: ["Users"],
-        summary: "Get nutrition profile",
-        security: [{ BearerAuth: [] }],
-        responses: {
-          200: {
-            description: "Nutrition profile",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    data: ref("NutritionProfile"),
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      post: {
-        tags: ["Users"],
-        summary: "Create nutrition profile",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: jsonContent(ref("HealthPayload")),
-        },
-        responses: {
-          201: {
-            description: "Profile created",
-            content: jsonContent(ref("NutritionProfile")),
-          },
-        },
-      },
-      patch: {
-        tags: ["Users"],
-        summary: "Update nutrition profile",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: jsonContent(ref("HealthPayload")),
-        },
-        responses: {
-          200: {
-            description: "Profile updated",
-            content: jsonContent(ref("NutritionProfile")),
-          },
-        },
-      },
-    },
     "/users/stats": {
       get: {
         tags: ["Users"],
@@ -603,7 +468,7 @@ const swaggerDefinition = {
       },
       post: {
         tags: ["Users"],
-        summary: "Create user stats",
+        summary: "Create user stats and auto-generate a daily meal plan",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -618,7 +483,7 @@ const swaggerDefinition = {
       },
       patch: {
         tags: ["Users"],
-        summary: "Update user stats",
+        summary: "Update user stats and auto-regenerate the daily meal plan",
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -632,169 +497,70 @@ const swaggerDefinition = {
         },
       },
     },
-    "/diet/calculate": {
-      post: {
-        tags: ["Diet"],
-        summary: "Calculate BMR, TDEE, target calories, and macros",
-        requestBody: {
-          required: true,
-          content: jsonContent(ref("DietCalcInput")),
-        },
-        responses: {
-          200: {
-            description: "Calculation result",
-            content: jsonContent(ref("DietCalcResult")),
-          },
-        },
-      },
-    },
-    "/diet/plan": {
-      post: {
-        tags: ["Diet"],
-        summary: "Save long-term diet plan",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                minProperties: 1,
-                example: {
-                  planName: "8 Week Cut",
-                  weeks: 8,
-                  notes: "High protein focus",
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          201: { description: "Plan saved" },
-        },
-      },
-    },
-    "/diet/plan/latest": {
+    "/users/data/export": {
       get: {
-        tags: ["Diet"],
-        summary: "Get latest saved diet plan",
+        tags: ["Users"],
+        summary: "Export all user data",
         security: [{ BearerAuth: [] }],
         responses: {
-          200: { description: "Latest plan" },
+          200: { description: "Exported data" },
         },
       },
     },
-    "/meals/generate": {
-      post: {
-        tags: ["Meals"],
-        summary: "Generate a daily meal plan from user stats and MySQL foods",
+    "/users/status": {
+      delete: {
+        tags: ["Users"],
+        summary: "Deactivate user account",
         security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: false,
-          content: jsonContent(ref("MealGenerationInput")),
-        },
         responses: {
-          201: {
-            description: "Meal plan generated",
-            content: jsonContent(ref("MealPlan")),
-          },
-          422: {
-            description: "Incomplete nutrition profile",
-            content: jsonContent(ref("Error")),
-          },
+          200: { description: "Account deactivated" },
         },
       },
     },
-    "/meals/alternatives": {
-      post: {
-        tags: ["Meals"],
-        summary: "Get alternative foods for a meal type",
+    "/users/account": {
+      delete: {
+        tags: ["Users"],
+        summary: "Delete user account",
         security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: jsonContent(ref("MealAlternativesInput")),
+        responses: {
+          200: { description: "Account deleted" },
         },
+      },
+    },
+    "/users/weight-history": {
+      get: {
+        tags: ["Users"],
+        summary: "Get weight history",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          200: { description: "Weight history" },
+        },
+      },
+    },
+    "/meals/latest": {
+      get: {
+        tags: ["Meals"],
+        summary: "Get the latest generated meal plan",
+        security: [{ BearerAuth: [] }],
         responses: {
           200: {
-            description: "Alternative foods",
+            description: "Latest meal plan",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     success: { type: "boolean" },
-                    data: {
-                      type: "array",
-                      items: ref("MealFoodItem"),
-                    },
+                    data: ref("SavedMealPlan"),
                   },
                 },
               },
             },
           },
-        },
-      },
-    },
-    "/nutrition/log": {
-      post: {
-        tags: ["Nutrition"],
-        summary: "Log a meal and update calorie progress",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                required: ["name", "targetCalories"],
-                properties: {
-                  name: { type: "string", example: "Chicken Salad" },
-                  calories: { type: "number", example: 350 },
-                  protein: { type: "number", example: 30 },
-                  carbs: { type: "number", example: 20 },
-                  fats: { type: "number", example: 10 },
-                  targetCalories: { type: "number", example: 2000 },
-                  date: { type: "string", example: "2026-04-03T12:00:00.000Z" },
-                },
-              },
-            },
+          404: {
+            description: "Meal plan not found",
+            content: jsonContent(ref("Error")),
           },
-        },
-        responses: {
-          201: { description: "Meal logged" },
-        },
-      },
-    },
-    "/nutrition/daily": {
-      get: {
-        tags: ["Nutrition"],
-        summary: "Get daily summary",
-        security: [{ BearerAuth: [] }],
-        responses: {
-          200: { description: "Daily summary" },
-        },
-      },
-    },
-    "/ai/chat": {
-      post: {
-        tags: ["Chatbot"],
-        summary: "AI nutrition assistant",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                required: ["message"],
-                properties: {
-                  message: { type: "string", example: "Generate a meal plan" },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          200: { description: "AI response" },
         },
       },
     },

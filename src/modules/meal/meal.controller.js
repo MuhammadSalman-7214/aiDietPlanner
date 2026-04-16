@@ -77,4 +77,13 @@ const getAlternatives = async (req, res, next) => {
   }
 };
 
-module.exports = { generateMealPlan, getAlternatives };
+const getLatestMealPlan = async (req, res, next) => {
+  try {
+    const plan = await mealService.getLatestMealPlan(req.user.id);
+    return res.json({ success: true, data: plan });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+module.exports = { generateMealPlan, getAlternatives, getLatestMealPlan };

@@ -1,4 +1,5 @@
 const mealRepo = require('./meal.repository');
+const dietRepo = require('../diet/diet.repository');
 const userRepo = require('../user/user.repository');
 const { calculateBMR, calculateTDEE, calculateTargetCalories, calculateMacros } = require('../../utils/calorieCalculator');
 const { AppError } = require('../../middlewares/error.middleware');
@@ -191,6 +192,21 @@ const resolveMealContext = async ({
   };
 };
 
+const generateAndStoreMealPlan = async ({ userId, mealsCount = DEFAULT_MEALS_COUNT }) => {
+  const resolvedContext = await resolveMealContext({
+    userId,
+    mealsCount,
+  });
+
+  const plan = await generateMealPlan({
+    userId,
+    mealsCount,
+    resolvedContext,
+  });
+
+  return dietRepo.createPlan(userId, plan);
+};
+
 const generateMealPlan = async (params) => {
   const context = params.resolvedContext || await resolveMealContext(params);
   const foods = await mealRepo.findFoods(context.dietType !== 'any' ? { dietType: context.dietType } : {});
@@ -237,6 +253,14 @@ const generateMealPlan = async (params) => {
     snacks,
     alternatives,
   };
+};
+
+const getLatestMealPlan = async (userId) => {
+  const plan = await dietRepo.findLatestPlan(userId);
+  if (!plan) {
+    throw new AppError('Meal plan not found', 404);
+  }
+  return plan;
 };
 
 const generateAIMealSuggestions = async ({
@@ -294,7 +318,9 @@ const getAlternatives = async ({ userId, calories, targetCalories, dietType, all
 
 module.exports = {
   resolveMealContext,
+  generateAndStoreMealPlan,
   generateMealPlan,
   generateAIMealSuggestions,
   getAlternatives,
+  getLatestMealPlan,
 };

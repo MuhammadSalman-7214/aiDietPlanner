@@ -57,19 +57,22 @@ router.put(
 //   validateRequest(statusSchema),
 //   userController.updateUserStatus,
 // );
-router.get("/profile", authMiddleware, userController.getHealthProfile);
-router.post(
-  "/profile",
-  authMiddleware,
-  validateRequest(nutritionSchema),
-  userController.createHealthProfile,
-);
-router.patch(
-  "/profile",
-  authMiddleware,
-  validateRequest(nutritionSchema),
-  userController.updateHealthProfile,
-);
+// Profile endpoints are intentionally disabled.
+// Nutritional data is managed exclusively through /users/stats,
+// which now also triggers automatic meal-plan generation.
+// router.get("/profile", authMiddleware, userController.getHealthProfile);
+// router.post(
+//   "/profile",
+//   authMiddleware,
+//   validateRequest(nutritionSchema),
+//   userController.createHealthProfile,
+// );
+// router.patch(
+//   "/profile",
+//   authMiddleware,
+//   validateRequest(nutritionSchema),
+//   userController.updateHealthProfile,
+// );
 router.get("/stats", authMiddleware, userController.getStats);
 router.post(
   "/stats",
