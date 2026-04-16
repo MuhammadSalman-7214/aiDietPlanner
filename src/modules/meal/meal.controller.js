@@ -8,20 +8,11 @@ const buildCacheKey = (userId, body, statsVersion) => {
 const generateMealPlan = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const payload = {
-      ...req.body,
-      isPremium: Boolean(req.user?.isPremium),
-      userId,
-    };
+    const mealsCount = req.body.mealsCount;
 
     const resolvedContext = await mealService.resolveMealContext({
       userId,
-      calories: payload.calories,
-      targetCalories: payload.targetCalories,
-      dietType: payload.dietType,
-      allergies: payload.allergies,
-      mealDislikes: payload.mealDislikes,
-      mealsCount: payload.mealsCount,
+      mealsCount,
     });
 
     const cacheKey = buildCacheKey(
@@ -41,12 +32,13 @@ const generateMealPlan = async (req, res, next) => {
     }
 
     const plan = await mealService.generateMealPlan({
-      ...payload,
+      userId,
+      mealsCount,
       resolvedContext,
     });
     const aiSuggestions = await mealService.generateAIMealSuggestions({
       calories: plan.nutrition.targetCalories,
-      dietType: payload.dietType || 'any',
+      dietType: 'any',
       isPremium: Boolean(req.user?.isPremium),
       allergies: plan.nutrition.mealAllergies,
       mealDislikes: plan.nutrition.mealDislikes,
@@ -72,12 +64,6 @@ const getAlternatives = async (req, res, next) => {
   try {
     const resolvedContext = await mealService.resolveMealContext({
       userId: req.user.id,
-      calories: req.body.calories,
-      targetCalories: req.body.targetCalories,
-      dietType: req.body.dietType,
-      allergies: req.body.allergies,
-      mealDislikes: req.body.mealDislikes,
-      mealsCount: req.body.mealsCount,
     });
 
     const alternatives = await mealService.getAlternatives({

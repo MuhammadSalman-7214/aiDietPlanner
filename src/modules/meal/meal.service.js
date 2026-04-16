@@ -107,6 +107,30 @@ const pickFoodsForTarget = (foods, targetCalories) => {
   return { items, totals };
 };
 
+const scoreFoodsByPreferences = (foods, preferences = []) => {
+  const normalizedPreferences = mergeLists(preferences);
+  if (normalizedPreferences.length === 0) return foods;
+
+  return foods
+    .map((food) => {
+      const haystack = [
+        food.name,
+        ...(Array.isArray(food.ingredients) ? food.ingredients : []),
+      ]
+        .map((item) => String(item).toLowerCase())
+        .join(' ');
+
+      const preferenceHits = normalizedPreferences.reduce(
+        (count, pref) => count + (haystack.includes(pref) ? 1 : 0),
+        0,
+      );
+
+      return { food, preferenceHits };
+    })
+    .sort((a, b) => b.preferenceHits - a.preferenceHits)
+    .map((entry) => entry.food);
+};
+
 const resolveMealContext = async ({
   userId,
   calories,
@@ -171,12 +195,13 @@ const generateMealPlan = async (params) => {
   const context = params.resolvedContext || await resolveMealContext(params);
   const foods = await mealRepo.findFoods(context.dietType !== 'any' ? { dietType: context.dietType } : {});
   const safeFoods = filterExcludedFoods(foods, context.allergies, context.mealDislikes);
+  const prioritizedFoods = scoreFoodsByPreferences(safeFoods, context.mealPreferences);
   const targets = buildMealTargets(context.calories, context.mealsCount);
 
-  const breakfastFoods = safeFoods.filter((food) => food.category === 'breakfast');
-  const lunchFoods = safeFoods.filter((food) => food.category === 'lunch');
-  const dinnerFoods = safeFoods.filter((food) => food.category === 'dinner');
-  const snackFoods = safeFoods.filter((food) => food.category === 'snack');
+  const breakfastFoods = prioritizedFoods.filter((food) => food.category === 'breakfast');
+  const lunchFoods = prioritizedFoods.filter((food) => food.category === 'lunch');
+  const dinnerFoods = prioritizedFoods.filter((food) => food.category === 'dinner');
+  const snackFoods = prioritizedFoods.filter((food) => food.category === 'snack');
 
   const breakfast = pickFoodsForTarget(breakfastFoods, targets.breakfast);
   const lunch = pickFoodsForTarget(lunchFoods, targets.lunch);

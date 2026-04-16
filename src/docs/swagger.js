@@ -292,29 +292,6 @@ const swaggerDefinition = {
       MealGenerationInput: {
         type: "object",
         properties: {
-          calories: {
-            type: "number",
-            minimum: 800,
-            maximum: 6000,
-            example: 2000,
-          },
-          targetCalories: {
-            type: "number",
-            minimum: 800,
-            maximum: 6000,
-            example: 2000,
-          },
-          dietType: { type: "string", example: "balanced" },
-          allergies: {
-            type: "array",
-            items: { type: "string" },
-            example: ["peanut"],
-          },
-          mealDislikes: {
-            type: "array",
-            items: { type: "string" },
-            example: ["okra"],
-          },
           mealsCount: { type: "integer", enum: [3, 4, 5], example: 3 },
         },
       },
@@ -322,25 +299,6 @@ const swaggerDefinition = {
         type: "object",
         required: ["mealType"],
         properties: {
-          calories: {
-            type: "number",
-            minimum: 800,
-            maximum: 6000,
-            example: 2000,
-          },
-          targetCalories: {
-            type: "number",
-            minimum: 800,
-            maximum: 6000,
-            example: 2000,
-          },
-          dietType: { type: "string", example: "any" },
-          allergies: { type: "array", items: { type: "string" }, example: [] },
-          mealDislikes: {
-            type: "array",
-            items: { type: "string" },
-            example: [],
-          },
           mealType: {
             type: "string",
             enum: ["breakfast", "lunch", "dinner", "snack"],
