@@ -24,6 +24,7 @@ const swaggerDefinition = {
   tags: [
     { name: "Auth" },
     { name: "Users" },
+    { name: "Diet" },
     { name: "Meals" },
   ],
   components: {
@@ -214,7 +215,15 @@ const swaggerDefinition = {
           id: { type: "integer", example: 18 },
           userId: { type: "integer", example: 27 },
           createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time", nullable: true },
           plan: { $ref: "#/components/schemas/MealPlan" },
+        },
+      },
+      LatestMealPlanResponse: {
+        type: "object",
+        properties: {
+          success: { type: "boolean", example: true },
+          data: { $ref: "#/components/schemas/SavedMealPlan" },
         },
       },
       HealthPayload: {
@@ -393,6 +402,135 @@ const swaggerDefinition = {
         },
         responses: {
           200: { description: "Password updated" },
+        },
+      },
+    },
+    "/diet/calculate": {
+      post: {
+        tags: ["Diet"],
+        summary: "Calculate diet targets from age, gender, weight, height and activity",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["age", "gender", "weight", "height", "activityLevel", "goal"],
+                properties: {
+                  age: { type: "integer", example: 28 },
+                  gender: { type: "string", enum: ["male", "female"], example: "female" },
+                  weight: { type: "number", example: 65 },
+                  height: { type: "number", example: 168 },
+                  activityLevel: {
+                    type: "string",
+                    enum: ["sedentary", "light", "moderate", "active", "very_active"],
+                    example: "moderate",
+                  },
+                  goal: { type: "string", enum: ["loss", "gain", "maintain"], example: "maintain" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: "Diet calculation result",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: {
+                      type: "object",
+                      properties: {
+                        bmr: { type: "integer", example: 1450 },
+                        tdee: { type: "integer", example: 2100 },
+                        targetCalories: { type: "integer", example: 1800 },
+                        macros: {
+                          type: "object",
+                          properties: {
+                            protein: { type: "integer", example: 135 },
+                            carbs: { type: "integer", example: 203 },
+                            fats: { type: "integer", example: 60 },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/diet/plan": {
+      post: {
+        tags: ["Diet"],
+        summary: "Save a diet plan for the current user",
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                minProperties: 1,
+                example: {
+                  nutrition: {
+                    source: "manual_override",
+                    targetCalories: 2000,
+                    macros: { protein: 150, carbs: 225, fats: 67 },
+                    mealsCount: 3,
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: "Plan saved",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: ref("SavedMealPlan"),
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/diet/plan/latest": {
+      get: {
+        tags: ["Diet"],
+        summary: "Get the latest saved diet plan",
+        security: [{ BearerAuth: [] }],
+        responses: {
+          200: {
+            description: "Latest diet plan",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    success: { type: "boolean" },
+                    data: ref("SavedMealPlan"),
+                  },
+                },
+              },
+            },
+          },
+          404: {
+            description: "Diet plan not found",
+            content: jsonContent(ref("Error")),
+          },
         },
       },
     },
@@ -596,22 +734,82 @@ const swaggerDefinition = {
     "/meals/latest": {
       get: {
         tags: ["Meals"],
-        summary: "Get the latest generated meal plan",
+        summary: "Fetch the latest saved meal plan",
+        description: "Returns the most recently stored meal plan for the authenticated user.",
+        operationId: "getLatestMealPlan",
         security: [{ BearerAuth: [] }],
         responses: {
           200: {
             description: "Latest meal plan",
             content: {
               "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    data: ref("SavedMealPlan"),
+                example: {
+                  success: true,
+                  data: {
+                    id: 18,
+                    userId: 1,
+                    createdAt: "2026-04-03T10:00:00.000Z",
+                    updatedAt: "2026-04-03T12:00:00.000Z",
+                    plan: {
+                      nutrition: {
+                        source: "user_profile",
+                        targetCalories: 2000,
+                        macros: {
+                          protein: 150,
+                          carbs: 225,
+                          fats: 67,
+                        },
+                        mealsCount: 3,
+                      },
+                      mealTargets: {
+                        breakfast: 600,
+                        lunch: 700,
+                        dinner: 700,
+                        snacks: [],
+                      },
+                      breakfast: {
+                        items: [],
+                        totals: {
+                          calories: 0,
+                          protein: 0,
+                          carbs: 0,
+                          fats: 0,
+                        },
+                      },
+                      lunch: {
+                        items: [],
+                        totals: {
+                          calories: 0,
+                          protein: 0,
+                          carbs: 0,
+                          fats: 0,
+                        },
+                      },
+                      dinner: {
+                        items: [],
+                        totals: {
+                          calories: 0,
+                          protein: 0,
+                          carbs: 0,
+                          fats: 0,
+                        },
+                      },
+                      snacks: [],
+                      alternatives: {
+                        breakfast: [],
+                        lunch: [],
+                        dinner: [],
+                        snacks: [],
+                      },
+                    },
                   },
                 },
               },
             },
+          },
+          401: {
+            description: "Unauthorized",
+            content: jsonContent(ref("Error")),
           },
           404: {
             description: "Meal plan not found",

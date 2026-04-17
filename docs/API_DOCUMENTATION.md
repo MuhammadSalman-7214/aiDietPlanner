@@ -681,6 +681,31 @@ Response:
 
 ## Meals (Protected)
 
+**GET `/meals/latest`**  
+Purpose: Fetch the latest saved meal plan for the authenticated user  
+Payload: none  
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 18,
+    "userId": 1,
+    "createdAt": "2026-04-03T10:00:00.000Z",
+    "updatedAt": "2026-04-03T12:00:00.000Z",
+    "plan": {
+      "nutrition": {
+        "source": "user_profile",
+        "targetCalories": 2000,
+        "macros": { "protein": 150, "carbs": 225, "fats": 67 },
+        "mealsCount": 3
+      }
+    }
+  }
+}
+```
+
 **POST `/meals/generate`**  
 Purpose: Generate daily meal plan  
 Payload:

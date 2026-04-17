@@ -19,7 +19,17 @@ app.use(requestLogger);
 app.use(rateLimiter);
 
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
-app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use(
+  "/api/docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    swaggerOptions: {
+      defaultModelRendering: "example",
+      defaultModelsExpandDepth: -1,
+      docExpansion: "list",
+    },
+  }),
+);
 
 app.use("/api", routes);
 app.get("/", (req, res) => {
