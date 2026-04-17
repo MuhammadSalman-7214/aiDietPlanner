@@ -124,6 +124,48 @@ Response:
 { "success": true, "data": { "message": "OTP sent to email" } }
 ```
 
+**POST `/auth/password/reset/request`**  
+Purpose: Request a password reset OTP  
+Payload:
+
+```json
+{ "email": "test@example.com" }
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "If the account exists, a reset code has been sent."
+  }
+}
+```
+
+**POST `/auth/password/reset/confirm`**  
+Purpose: Confirm password reset with OTP  
+Payload:
+
+```json
+{
+  "email": "test@example.com",
+  "otp": "123456",
+  "newPassword": "newpass123"
+}
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Password reset successfully"
+  }
+}
+```
+
 ---
 
 ## User (Protected)

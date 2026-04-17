@@ -263,6 +263,7 @@ const ensureSchema = async (db) => {
       user_id INT UNSIGNED NOT NULL,
       plan_json TEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_diet_plans_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       INDEX idx_diet_plans_user (user_id, created_at)
     )
@@ -433,6 +434,12 @@ const ensureSchema = async (db) => {
     "diet_plans",
     "idx_diet_plans_user",
     "ADD INDEX idx_diet_plans_user (user_id, created_at)",
+  );
+  await ensureColumn(
+    db,
+    "diet_plans",
+    "updated_at",
+    "`updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
   );
   await ensureIndex(
     db,

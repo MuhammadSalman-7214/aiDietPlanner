@@ -247,6 +247,22 @@ const swaggerDefinition = {
           },
         },
       },
+      PasswordResetRequest: {
+        type: "object",
+        required: ["email"],
+        properties: {
+          email: { type: "string", example: "jane@example.com" },
+        },
+      },
+      PasswordResetConfirm: {
+        type: "object",
+        required: ["email", "otp", "newPassword"],
+        properties: {
+          email: { type: "string", example: "jane@example.com" },
+          otp: { type: "string", example: "123456" },
+          newPassword: { type: "string", example: "newpass123" },
+        },
+      },
     },
   },
   paths: {
@@ -377,6 +393,46 @@ const swaggerDefinition = {
         },
         responses: {
           200: { description: "Password updated" },
+        },
+      },
+    },
+    "/auth/password/reset/request": {
+      post: {
+        tags: ["Auth"],
+        summary: "Request a password reset OTP",
+        requestBody: {
+          required: true,
+          content: jsonContent(ref("PasswordResetRequest")),
+        },
+        responses: {
+          200: {
+            description: "Reset code sent if the account exists",
+            content: jsonContent(ref("MessageResponse")),
+          },
+          429: {
+            description: "Reset code requested too recently",
+            content: jsonContent(ref("Error")),
+          },
+        },
+      },
+    },
+    "/auth/password/reset/confirm": {
+      post: {
+        tags: ["Auth"],
+        summary: "Confirm password reset with OTP",
+        requestBody: {
+          required: true,
+          content: jsonContent(ref("PasswordResetConfirm")),
+        },
+        responses: {
+          200: {
+            description: "Password reset successfully",
+            content: jsonContent(ref("MessageResponse")),
+          },
+          400: {
+            description: "Invalid or expired reset code",
+            content: jsonContent(ref("Error")),
+          },
         },
       },
     },
