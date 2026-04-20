@@ -24,7 +24,7 @@ const swaggerDefinition = {
   tags: [
     { name: "Auth" },
     { name: "Users" },
-    { name: "Diet" },
+    // { name: "Diet" },
     { name: "Meals" },
   ],
   components: {
@@ -141,6 +141,57 @@ const swaggerDefinition = {
           },
         },
       },
+      MealItemAlternativeChoice: {
+        type: "object",
+        properties: {
+          id: { type: "integer", example: 295 },
+          name: { type: "string", example: "Bread, egg" },
+          calories: { type: "number", example: 1200 },
+          protein: { type: "number", example: 10 },
+          carbs: { type: "number", example: 48 },
+          fats: { type: "number", example: 6 },
+          matchScore: { type: "number", example: 79.7 },
+          macroDelta: {
+            type: "object",
+            properties: {
+              calories: { type: "number", example: 40 },
+              protein: { type: "number", example: -1 },
+              carbs: { type: "number", example: -5 },
+              fats: { type: "number", example: 6 },
+            },
+          },
+        },
+      },
+      MealItemAlternative: {
+        type: "object",
+        properties: {
+          originalItemId: { type: "integer", example: 294 },
+          originalItemName: { type: "string", example: "Bagels, egg" },
+          replaceableComponent: { type: "string", example: "egg" },
+          category: { type: "string", example: "breakfast" },
+          alternatives: {
+            type: "array",
+            items: { $ref: "#/components/schemas/MealItemAlternativeChoice" },
+          },
+          recommended: {
+            type: "object",
+            nullable: true,
+            properties: {
+              id: { type: "integer", example: 295 },
+              name: { type: "string", example: "Bread, egg" },
+            },
+          },
+          previewTotals: {
+            type: "object",
+            properties: {
+              calories: { type: "number", example: 1180 },
+              protein: { type: "number", example: 12 },
+              carbs: { type: "number", example: 50 },
+              fats: { type: "number", example: 6 },
+            },
+          },
+        },
+      },
       MealTargets: {
         type: "object",
         properties: {
@@ -187,10 +238,21 @@ const swaggerDefinition = {
           alternatives: {
             type: "object",
             properties: {
-              breakfast: { type: "array", items: ref("MealFoodItem") },
-              lunch: { type: "array", items: ref("MealFoodItem") },
-              dinner: { type: "array", items: ref("MealFoodItem") },
-              snacks: { type: "array", items: ref("MealFoodItem") },
+              breakfast: { type: "array", items: ref("MealItemAlternative") },
+              lunch: { type: "array", items: ref("MealItemAlternative") },
+              dinner: { type: "array", items: ref("MealItemAlternative") },
+              snacks: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    mealIndex: { type: "integer", example: 1 },
+                    items: { type: "array", items: ref("MealItemAlternative") },
+                  },
+                },
+              },
+              generatedAt: { type: "string", format: "date-time" },
+              source: { type: "string", example: "user_meal_plan" },
             },
           },
           aiSuggestions: {
@@ -405,135 +467,135 @@ const swaggerDefinition = {
         },
       },
     },
-    "/diet/calculate": {
-      post: {
-        tags: ["Diet"],
-        summary: "Calculate diet targets from age, gender, weight, height and activity",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                required: ["age", "gender", "weight", "height", "activityLevel", "goal"],
-                properties: {
-                  age: { type: "integer", example: 28 },
-                  gender: { type: "string", enum: ["male", "female"], example: "female" },
-                  weight: { type: "number", example: 65 },
-                  height: { type: "number", example: 168 },
-                  activityLevel: {
-                    type: "string",
-                    enum: ["sedentary", "light", "moderate", "active", "very_active"],
-                    example: "moderate",
-                  },
-                  goal: { type: "string", enum: ["loss", "gain", "maintain"], example: "maintain" },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          200: {
-            description: "Diet calculation result",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    data: {
-                      type: "object",
-                      properties: {
-                        bmr: { type: "integer", example: 1450 },
-                        tdee: { type: "integer", example: 2100 },
-                        targetCalories: { type: "integer", example: 1800 },
-                        macros: {
-                          type: "object",
-                          properties: {
-                            protein: { type: "integer", example: 135 },
-                            carbs: { type: "integer", example: 203 },
-                            fats: { type: "integer", example: 60 },
-                          },
-                        },
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/diet/plan": {
-      post: {
-        tags: ["Diet"],
-        summary: "Save a diet plan for the current user",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                minProperties: 1,
-                example: {
-                  nutrition: {
-                    source: "manual_override",
-                    targetCalories: 2000,
-                    macros: { protein: 150, carbs: 225, fats: 67 },
-                    mealsCount: 3,
-                  },
-                },
-              },
-            },
-          },
-        },
-        responses: {
-          201: {
-            description: "Plan saved",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    data: ref("SavedMealPlan"),
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-    "/diet/plan/latest": {
-      get: {
-        tags: ["Diet"],
-        summary: "Get the latest saved diet plan",
-        security: [{ BearerAuth: [] }],
-        responses: {
-          200: {
-            description: "Latest diet plan",
-            content: {
-              "application/json": {
-                schema: {
-                  type: "object",
-                  properties: {
-                    success: { type: "boolean" },
-                    data: ref("SavedMealPlan"),
-                  },
-                },
-              },
-            },
-          },
-          404: {
-            description: "Diet plan not found",
-            content: jsonContent(ref("Error")),
-          },
-        },
-      },
-    },
+    // "/diet/calculate": {
+    //   post: {
+    //     tags: ["Diet"],
+    //     summary: "Calculate diet targets from age, gender, weight, height and activity",
+    //     requestBody: {
+    //       required: true,
+    //       content: {
+    //         "application/json": {
+    //           schema: {
+    //             type: "object",
+    //             required: ["age", "gender", "weight", "height", "activityLevel", "goal"],
+    //             properties: {
+    //               age: { type: "integer", example: 28 },
+    //               gender: { type: "string", enum: ["male", "female"], example: "female" },
+    //               weight: { type: "number", example: 65 },
+    //               height: { type: "number", example: 168 },
+    //               activityLevel: {
+    //                 type: "string",
+    //                 enum: ["sedentary", "light", "moderate", "active", "very_active"],
+    //                 example: "moderate",
+    //               },
+    //               goal: { type: "string", enum: ["loss", "gain", "maintain"], example: "maintain" },
+    //             },
+    //           },
+    //         },
+    //       },
+    //     },
+    //     responses: {
+    //       200: {
+    //         description: "Diet calculation result",
+    //         content: {
+    //           "application/json": {
+    //             schema: {
+    //               type: "object",
+    //               properties: {
+    //                 success: { type: "boolean" },
+    //                 data: {
+    //                   type: "object",
+    //                   properties: {
+    //                     bmr: { type: "integer", example: 1450 },
+    //                     tdee: { type: "integer", example: 2100 },
+    //                     targetCalories: { type: "integer", example: 1800 },
+    //                     macros: {
+    //                       type: "object",
+    //                       properties: {
+    //                         protein: { type: "integer", example: 135 },
+    //                         carbs: { type: "integer", example: 203 },
+    //                         fats: { type: "integer", example: 60 },
+    //                       },
+    //                     },
+    //                   },
+    //                 },
+    //               },
+    //             },
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+    // },
+    // "/diet/plan": {
+    //   post: {
+    //     tags: ["Diet"],
+    //     summary: "Save a diet plan for the current user",
+    //     security: [{ BearerAuth: [] }],
+    //     requestBody: {
+    //       required: true,
+    //       content: {
+    //         "application/json": {
+    //           schema: {
+    //             type: "object",
+    //             minProperties: 1,
+    //             example: {
+    //               nutrition: {
+    //                 source: "manual_override",
+    //                 targetCalories: 2000,
+    //                 macros: { protein: 150, carbs: 225, fats: 67 },
+    //                 mealsCount: 3,
+    //               },
+    //             },
+    //           },
+    //         },
+    //       },
+    //     },
+    //     responses: {
+    //       201: {
+    //         description: "Plan saved",
+    //         content: {
+    //           "application/json": {
+    //             schema: {
+    //               type: "object",
+    //               properties: {
+    //                 success: { type: "boolean" },
+    //                 data: ref("SavedMealPlan"),
+    //               },
+    //             },
+    //           },
+    //         },
+    //       },
+    //     },
+    //   },
+    // },
+    // "/diet/plan/latest": {
+    //   get: {
+    //     tags: ["Diet"],
+    //     summary: "Get the latest saved diet plan",
+    //     security: [{ BearerAuth: [] }],
+    //     responses: {
+    //       200: {
+    //         description: "Latest diet plan",
+    //         content: {
+    //           "application/json": {
+    //             schema: {
+    //               type: "object",
+    //               properties: {
+    //                 success: { type: "boolean" },
+    //                 data: ref("SavedMealPlan"),
+    //               },
+    //             },
+    //           },
+    //         },
+    //       },
+    //       404: {
+    //         description: "Diet plan not found",
+    //         content: jsonContent(ref("Error")),
+    //       },
+    //     },
+    //   },
+    // },
     "/auth/password/reset/request": {
       post: {
         tags: ["Auth"],
@@ -735,7 +797,8 @@ const swaggerDefinition = {
       get: {
         tags: ["Meals"],
         summary: "Fetch the latest saved meal plan",
-        description: "Returns the most recently stored meal plan for the authenticated user.",
+        description:
+          "Returns the most recently stored meal plan for the authenticated user.",
         operationId: "getLatestMealPlan",
         security: [{ BearerAuth: [] }],
         responses: {
@@ -796,10 +859,46 @@ const swaggerDefinition = {
                       },
                       snacks: [],
                       alternatives: {
-                        breakfast: [],
+                        breakfast: [
+                          {
+                            originalItemId: 294,
+                            originalItemName: "Bagels, egg",
+                            replaceableComponent: "egg",
+                            category: "breakfast",
+                            alternatives: [
+                              {
+                                id: 295,
+                                name: "Bread, egg",
+                                calories: 1200,
+                                protein: 10,
+                                carbs: 48,
+                                fats: 6,
+                                matchScore: 79.7,
+                                macroDelta: {
+                                  calories: 40,
+                                  protein: -1,
+                                  carbs: -5,
+                                  fats: 6,
+                                },
+                              },
+                            ],
+                            recommended: {
+                              id: 295,
+                              name: "Bread, egg",
+                            },
+                            previewTotals: {
+                              calories: 1180,
+                              protein: 12,
+                              carbs: 50,
+                              fats: 6,
+                            },
+                          },
+                        ],
                         lunch: [],
                         dinner: [],
                         snacks: [],
+                        generatedAt: "2026-04-03T12:00:00.000Z",
+                        source: "user_meal_plan",
                       },
                     },
                   },
@@ -814,6 +913,73 @@ const swaggerDefinition = {
           404: {
             description: "Meal plan not found",
             content: jsonContent(ref("Error")),
+          },
+        },
+      },
+      "/meals/alternatives": {
+        post: {
+          tags: ["Meals"],
+          summary: "Get item-level meal alternatives",
+          description:
+            "Returns ranked alternatives for a single item in the latest meal plan and can optionally simulate a one-item swap without persisting changes.",
+          operationId: "getItemAlternatives",
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: jsonContent({
+              type: "object",
+              properties: {
+                mealType: {
+                  type: "string",
+                  enum: ["breakfast", "lunch", "dinner", "snack"],
+                },
+                itemId: { type: "integer", example: 11 },
+                itemName: { type: "string", example: "Egg White Omelette" },
+                limit: { type: "integer", example: 4 },
+              },
+            }),
+          },
+          responses: {
+            200: {
+              description: "Ranked item alternatives",
+              content: {
+                "application/json": {
+                  example: {
+                    success: true,
+                    data: {
+                      originalItemId: 11,
+                      originalItemName: "Egg White Omelette",
+                      replaceableComponent: "egg",
+                      category: "breakfast",
+                      alternatives: [],
+                      recommended: null,
+                      previewTotals: {
+                        calories: 0,
+                        protein: 0,
+                        carbs: 0,
+                        fats: 0,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            400: {
+              description: "Validation failed",
+              content: jsonContent(ref("Error")),
+            },
+            401: {
+              description: "Unauthorized",
+              content: jsonContent(ref("Error")),
+            },
+            404: {
+              description: "Meal item not found",
+              content: jsonContent(ref("Error")),
+            },
+            409: {
+              description: "Ambiguous meal item match",
+              content: jsonContent(ref("Error")),
+            },
           },
         },
       },

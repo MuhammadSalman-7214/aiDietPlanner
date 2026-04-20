@@ -38,6 +38,17 @@ const handleMealGeneration = async ({ userId, isPremium }) => {
 };
 
 const handleMealReplacement = async ({ userId, isPremium }) => {
+  try {
+    if (userId) {
+      const latest = await mealService.getLatestMealPlan(userId);
+      return buildResponse('meal_replacement', latest.plan?.alternatives || {});
+    }
+  } catch (err) {
+    if (!(err && err.statusCode === 404)) {
+      throw err;
+    }
+  }
+
   const plan = await mealService.generateMealPlan({
     userId,
     calories: userId ? undefined : 2000,

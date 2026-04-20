@@ -62,14 +62,9 @@ const generateMealPlan = async (req, res, next) => {
 
 const getAlternatives = async (req, res, next) => {
   try {
-    const resolvedContext = await mealService.resolveMealContext({
-      userId: req.user.id,
-    });
-
-    const alternatives = await mealService.getAlternatives({
+    const alternatives = await mealService.getItemAlternatives({
       userId: req.user.id,
       ...req.body,
-      resolvedContext,
     });
     return res.json({ success: true, data: alternatives });
   } catch (err) {
