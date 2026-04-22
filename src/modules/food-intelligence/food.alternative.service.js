@@ -7,8 +7,11 @@ const {
 } = require("./component.engine");
 const { REPLACEMENTS } = require("./replacement.map");
 const {
+  classifyFoodRole,
+  isMealSafeFood,
   normalizeUsdaFood,
   normalizeUsdaFoods,
+  percentDiff,
   roundValue,
   safeNumber,
 } = require("./food.usda.service");
@@ -34,8 +37,11 @@ const normalizeFood = (food) => {
     componentTags: Array.isArray(normalizedFood.componentTags) && normalizedFood.componentTags.length > 0
       ? [...new Set(normalizedFood.componentTags.map((item) => normalize(item)).filter(Boolean))]
       : extractComponents(normalizedFood.name),
+    foodRole: normalizedFood.foodRole || classifyFoodRole(normalizedFood),
   };
 };
+
+const normalizeForMatch = (food) => normalizeFood(food);
 
 const getCandidates = ({ foods = [], category, originalId }) => {
   const baseCandidates = foods.filter((food) => safeNumber(food.id) !== safeNumber(originalId));
@@ -72,66 +78,132 @@ const matchReplacement = (food, component) => {
   );
 };
 
-const calculateScore = (original, alt) => {
-  const originalCalories = Math.max(safeNumber(original.calories), 1);
-  const originalProtein = Math.max(safeNumber(original.protein), 1);
-  const calDiff = Math.abs(safeNumber(original.calories) - safeNumber(alt.calories)) / originalCalories;
-  const proteinDiff = Math.abs(safeNumber(original.protein) - safeNumber(alt.protein)) / originalProtein;
-
-  return roundValue(Math.max(0, 100 - (calDiff * 50 + proteinDiff * 50)));
-};
-
-const findComponentReferenceFood = ({ component, foods = [], originalItem }) => {
-  const sameComponentFoods = foods.filter((food) =>
-    getComponentVariants(component).some((variant) =>
-      normalize([food.name, ...(food.componentTags || [])].join(" ")).includes(normalize(variant)),
-    ),
+const getTokenSet = (value) =>
+  new Set(
+    normalize(value)
+      .split(/\s+/)
+      .map((token) => token.trim())
+      .filter(Boolean),
   );
 
-  sameComponentFoods.sort((a, b) => {
-    const aScore = safeNumber(a.protein) + safeNumber(a.carbs) + safeNumber(a.fats);
-    const bScore = safeNumber(b.protein) + safeNumber(b.carbs) + safeNumber(b.fats);
-    return aScore - bScore;
-  });
+const calculateNameSimilarity = (original, candidate) => {
+  const originalTokens = getTokenSet([original.name, ...(original.componentTags || [])].join(" "));
+  const candidateTokens = getTokenSet([candidate.name, ...(candidate.componentTags || [])].join(" "));
+  if (originalTokens.size === 0 || candidateTokens.size === 0) return 0;
 
-  return sameComponentFoods[0] || originalItem;
+  let overlap = 0;
+  for (const token of candidateTokens) {
+    if (originalTokens.has(token)) overlap += 1;
+  }
+
+  return roundValue(overlap / Math.max(originalTokens.size, candidateTokens.size, 1));
 };
 
-const calculateAdjustedItem = (originalItem, componentSource, alternative) => ({
-  calories: roundValue(
-    safeNumber(originalItem.calories) - safeNumber(componentSource?.calories) + safeNumber(alternative.calories),
-  ),
-  protein: roundValue(
-    safeNumber(originalItem.protein) - safeNumber(componentSource?.protein) + safeNumber(alternative.protein),
-  ),
-  carbs: roundValue(
-    safeNumber(originalItem.carbs) - safeNumber(componentSource?.carbs) + safeNumber(alternative.carbs),
-  ),
-  fats: roundValue(
-    safeNumber(originalItem.fats) - safeNumber(componentSource?.fats) + safeNumber(alternative.fats),
-  ),
-});
+const calculateMacroSimilarity = (original, candidate) => {
+  const calorieSimilarity = 1 - percentDiff(original.calories, candidate.calories);
+  const proteinSimilarity = 1 - percentDiff(original.protein, candidate.protein);
+  const carbsSimilarity = 1 - percentDiff(original.carbs, candidate.carbs);
+  const fatsSimilarity = 1 - percentDiff(original.fats, candidate.fats);
+
+  return Math.max(
+    0,
+    roundValue(
+      (calorieSimilarity * 0.2) +
+      (proteinSimilarity * 0.3) +
+      (carbsSimilarity * 0.25) +
+      (fatsSimilarity * 0.25),
+    ),
+  );
+};
+
+const getSharedComponentMatch = (component, candidate) => {
+  const componentVariants = getComponentVariants(component).map((variant) => normalize(variant)).filter(Boolean);
+  const haystack = normalize([candidate.name, ...(candidate.componentTags || [])].join(" "));
+  return componentVariants.some((variant) => haystack.includes(variant)) ? 1 : 0;
+};
+
+const getCategoryMatch = (category, candidate) => (candidate.category === category ? 1 : 0);
+
+const getRoleMatch = (component, candidate) => {
+  const candidateRole = candidate.foodRole || classifyFoodRole(candidate);
+  if (!component) return 1;
+  const componentRole =
+    ["egg", "chicken", "turkey", "beef", "tofu", "beans", "fish"].includes(component)
+      ? "protein"
+      : ["rice", "quinoa", "oats", "bread", "wrap", "potato"].includes(component)
+        ? "carb"
+        : ["nuts", "avocado"].includes(component)
+          ? "fat"
+          : candidateRole;
+  return candidateRole === componentRole ? 1 : 0;
+};
+
+const calculateScore = ({ original, alt, component, category, ignoreNameSimilarity = false }) => {
+  const macroSimilarity = calculateMacroSimilarity(original, alt);
+  const componentMatch = getSharedComponentMatch(component, alt) || matchReplacement(alt, component) ? 1 : 0;
+  const categoryMatch = getCategoryMatch(category, alt);
+  const nameSimilarity = ignoreNameSimilarity ? 0 : calculateNameSimilarity(original, alt);
+  const roleMatch = getRoleMatch(component, alt);
+  const confidenceBonus = Math.max(0, Math.min(1, Number(alt.confidence) || 0));
+
+  return roundValue(
+    (macroSimilarity * 0.4) +
+    (Math.max(componentMatch, roleMatch) * 0.3) +
+    (categoryMatch * 0.2) +
+    (nameSimilarity * 0.1) +
+    (confidenceBonus * 0.05),
+  );
+};
+
+const isWithinStrictMacroTolerance = (original, candidate, tolerance = 0.25) => (
+  percentDiff(original.calories, candidate.calories) <= tolerance &&
+  percentDiff(original.protein, candidate.protein) <= tolerance &&
+  percentDiff(original.carbs, candidate.carbs) <= tolerance &&
+  percentDiff(original.fats, candidate.fats) <= tolerance
+);
+
+const scaleReplacementPortion = (original, replacement) => {
+  const replacementCalories = Math.max(safeNumber(replacement.calories), 1);
+  const scaleFactor = safeNumber(original.calories) / replacementCalories;
+
+  return {
+    calories: roundValue(safeNumber(replacement.calories) * scaleFactor),
+    protein: roundValue(safeNumber(replacement.protein) * scaleFactor),
+    carbs: roundValue(safeNumber(replacement.carbs) * scaleFactor),
+    fats: roundValue(safeNumber(replacement.fats) * scaleFactor),
+    scaleFactor: roundValue(scaleFactor),
+  };
+};
+
+const calculateAdjustedItem = (originalItem, componentSource, alternative) => {
+  const sourceCalories = componentSource ? safeNumber(componentSource.calories) : safeNumber(originalItem.calories);
+  const sourceProtein = componentSource ? safeNumber(componentSource.protein) : safeNumber(originalItem.protein);
+  const sourceCarbs = componentSource ? safeNumber(componentSource.carbs) : safeNumber(originalItem.carbs);
+  const sourceFats = componentSource ? safeNumber(componentSource.fats) : safeNumber(originalItem.fats);
+  const scaled = scaleReplacementPortion(
+    {
+      calories: sourceCalories,
+      protein: sourceProtein,
+      carbs: sourceCarbs,
+      fats: sourceFats,
+    },
+    alternative,
+  );
+
+  return {
+    calories: roundValue(safeNumber(originalItem.calories) - sourceCalories + scaled.calories),
+    protein: roundValue(safeNumber(originalItem.protein) - sourceProtein + scaled.protein),
+    carbs: roundValue(safeNumber(originalItem.carbs) - sourceCarbs + scaled.carbs),
+    fats: roundValue(safeNumber(originalItem.fats) - sourceFats + scaled.fats),
+    scaledReplacement: scaled,
+  };
+};
 
 const calculateTotalsDelta = (before, after) => ({
   calories: roundValue(safeNumber(after.calories) - safeNumber(before.calories)),
   protein: roundValue(safeNumber(after.protein) - safeNumber(before.protein)),
   carbs: roundValue(safeNumber(after.carbs) - safeNumber(before.carbs)),
   fats: roundValue(safeNumber(after.fats) - safeNumber(before.fats)),
-});
-
-const applyReplacement = (plan, original, alt) => ({
-  previewImpact: {
-    calories: roundValue(safeNumber(alt.calories) - safeNumber(original.calories)),
-    protein: roundValue(safeNumber(alt.protein) - safeNumber(original.protein)),
-    carbs: roundValue(safeNumber(alt.carbs) - safeNumber(original.carbs)),
-    fats: roundValue(safeNumber(alt.fats) - safeNumber(original.fats)),
-  },
-  previewTotals: {
-    calories: roundValue(safeNumber(plan.totalCalories) - safeNumber(original.calories) + safeNumber(alt.calories)),
-    protein: roundValue(safeNumber(plan.totalProtein) - safeNumber(original.protein) + safeNumber(alt.protein)),
-    carbs: roundValue(safeNumber(plan.totalCarbs) - safeNumber(original.carbs) + safeNumber(alt.carbs)),
-    fats: roundValue(safeNumber(plan.totalFats) - safeNumber(original.fats) + safeNumber(alt.fats)),
-  },
 });
 
 const calculatePreviewTotals = ({ mealTotals, dayTotals, originalItem, adjustedItem }) => {
@@ -155,28 +227,188 @@ const calculatePreviewTotals = ({ mealTotals, dayTotals, originalItem, adjustedI
   };
 };
 
-const summarizeChoice = (food, originalReference) => ({
-  id: food.id,
-  name: food.name,
-  calories: safeNumber(food.calories),
-  protein: safeNumber(food.protein),
-  carbs: safeNumber(food.carbs),
-  fats: safeNumber(food.fats),
-  matchScore: safeNumber(food.matchScore),
-  macroDelta: calculateTotalsDelta(originalReference, food),
-});
+const getConfidence = (score, usedFallback = false) => {
+  if (usedFallback) {
+    if (score >= 0.7) return "medium";
+    return "low";
+  }
 
-const getValidAlternatives = (candidates, component, originalItem) =>
-  candidates
-    .filter((candidate) => matchReplacement(candidate, component))
-    .map((candidate) => ({
-      ...candidate,
-      matchScore: calculateScore(originalItem, candidate),
-    }))
-    .sort((a, b) => {
-      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
-      return safeNumber(a.id) - safeNumber(b.id);
-    });
+  if (score >= 0.8) return "high";
+  if (score >= 0.6) return "medium";
+  return "low";
+};
+
+const getSafeSwapFlag = (original, replacement) => {
+  const comparable = replacement?.scaledPortion || replacement;
+  const macroDeviation =
+    Math.max(
+      percentDiff(original.calories, comparable.calories),
+      percentDiff(original.protein, comparable.protein),
+      percentDiff(original.carbs, comparable.carbs),
+      percentDiff(original.fats, comparable.fats),
+    );
+  return {
+    isSafeSwap: macroDeviation <= 0.25,
+    macroDeviation: roundValue(macroDeviation),
+  };
+};
+
+const summarizeChoice = (food, originalReference, { usedFallback = false } = {}) => {
+  const scaled = scaleReplacementPortion(originalReference, food);
+  const safety = getSafeSwapFlag(originalReference, {
+    ...food,
+    scaledPortion: scaled,
+  });
+  return {
+    id: food.id,
+    name: food.name,
+    calories: safeNumber(food.calories),
+    protein: safeNumber(food.protein),
+    carbs: safeNumber(food.carbs),
+    fats: safeNumber(food.fats),
+    weightGrams: food.weightGrams ?? food.weight_grams ?? null,
+    category: food.category || null,
+    foodRole: food.foodRole || classifyFoodRole(food),
+    matchScore: safeNumber(food.matchScore),
+    isSafeSwap: safety.isSafeSwap,
+    confidence: getConfidence(safeNumber(food.matchScore), usedFallback),
+    normalizationSource: food.normalizationSource || null,
+    scaleFactor: scaled.scaleFactor,
+    scaledPortion: {
+      calories: scaled.calories,
+      protein: scaled.protein,
+      carbs: scaled.carbs,
+      fats: scaled.fats,
+    },
+    macroDelta: calculateTotalsDelta(originalReference, scaled),
+  };
+};
+
+const getFallbackFoods = (component, foods = []) => {
+  const fallbackLibrary = {
+    protein: ["chicken", "tofu", "beans", "egg"],
+    carb: ["rice", "oats", "potato"],
+    fat: ["nuts", "avocado"],
+  };
+
+  const wanted = fallbackLibrary[
+    ["rice", "quinoa", "oats", "bread", "wrap", "potato"].includes(component)
+      ? "carb"
+      : ["nuts", "avocado"].includes(component)
+        ? "fat"
+        : "protein"
+  ] || [];
+
+  return foods.filter((food) => {
+    const haystack = normalize([food.name, ...(food.componentTags || [])].join(" "));
+    return wanted.some((item) => getComponentVariants(item).some((variant) => haystack.includes(normalize(variant))));
+  });
+};
+
+const rankAlternatives = ({
+  candidates = [],
+  component,
+  originalItem,
+  category,
+  tolerance = 0.25,
+  ignoreNameSimilarity = false,
+  usedFallback = false,
+  requireComponentMatch = true,
+  requireRoleMatch = true,
+  requireMacroMatch = true,
+}) => candidates
+  .filter((candidate) => isMealSafeFood(candidate))
+  .filter((candidate) => {
+    const componentMatch = getSharedComponentMatch(component, candidate) || matchReplacement(candidate, component);
+    const roleMatch = getRoleMatch(component, candidate);
+    const categoryMatch = getCategoryMatch(category, candidate);
+    const strictMacro = isWithinStrictMacroTolerance(originalItem, candidate, tolerance);
+    return categoryMatch &&
+      (!requireMacroMatch || strictMacro) &&
+      (!requireComponentMatch || componentMatch) &&
+      (!requireRoleMatch || roleMatch);
+  })
+  .map((candidate) => ({
+    ...candidate,
+    matchScore: calculateScore({
+      original: originalItem,
+      alt: candidate,
+      component,
+      category,
+      ignoreNameSimilarity,
+    }),
+    usedFallback,
+  }))
+  .sort((a, b) => {
+    if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+    return safeNumber(a.id) - safeNumber(b.id);
+  });
+
+const getValidAlternatives = (candidates, component, originalItem, category = originalItem?.category) => {
+  const strictMatches = rankAlternatives({
+    candidates,
+    component,
+    originalItem,
+    category,
+    tolerance: 0.25,
+  });
+  if (strictMatches.length > 0) return strictMatches;
+
+  const relaxedMatches = rankAlternatives({
+    candidates,
+    component,
+    originalItem,
+    category,
+    tolerance: 0.4,
+    ignoreNameSimilarity: true,
+  });
+  if (relaxedMatches.length > 0) return relaxedMatches;
+
+  const fallbackCandidates = getFallbackFoods(component, candidates);
+  return rankAlternatives({
+    candidates: fallbackCandidates,
+    component,
+    originalItem,
+    category,
+    tolerance: 0.4,
+    ignoreNameSimilarity: true,
+    usedFallback: true,
+    requireComponentMatch: false,
+    requireRoleMatch: false,
+    requireMacroMatch: false,
+  });
+};
+
+const findComponentReferenceFood = ({ component, foods = [], originalItem }) => {
+  const sameComponentFoods = foods.filter((food) =>
+    getComponentVariants(component).some((variant) =>
+      normalize([food.name, ...(food.componentTags || [])].join(" ")).includes(normalize(variant)),
+    ),
+  );
+
+  sameComponentFoods.sort((a, b) => {
+    const aScore = safeNumber(a.protein) + safeNumber(a.carbs) + safeNumber(a.fats);
+    const bScore = safeNumber(b.protein) + safeNumber(b.carbs) + safeNumber(b.fats);
+    return aScore - bScore;
+  });
+
+  return sameComponentFoods[0] || originalItem;
+};
+
+const applyReplacement = (plan, original, adjustedAlt) => ({
+  previewImpact: {
+    calories: roundValue(safeNumber(adjustedAlt.calories) - safeNumber(original.calories)),
+    protein: roundValue(safeNumber(adjustedAlt.protein) - safeNumber(original.protein)),
+    carbs: roundValue(safeNumber(adjustedAlt.carbs) - safeNumber(original.carbs)),
+    fats: roundValue(safeNumber(adjustedAlt.fats) - safeNumber(original.fats)),
+  },
+  previewTotals: {
+    calories: roundValue(safeNumber(plan.totalCalories) - safeNumber(original.calories) + safeNumber(adjustedAlt.calories)),
+    protein: roundValue(safeNumber(plan.totalProtein) - safeNumber(original.protein) + safeNumber(adjustedAlt.protein)),
+    carbs: roundValue(safeNumber(plan.totalCarbs) - safeNumber(original.carbs) + safeNumber(adjustedAlt.carbs)),
+    fats: roundValue(safeNumber(plan.totalFats) - safeNumber(original.fats) + safeNumber(adjustedAlt.fats)),
+  },
+});
 
 const buildComponentAlternativeBlock = ({
   originalItem,
@@ -202,12 +434,12 @@ const buildComponentAlternativeBlock = ({
         meal: mealTotals,
         day: dayTotals,
       },
-      reason: "no_valid_usda_match",
+      reason: "no_valid_match_after_fallback",
     };
   }
 
   const summarizedAlternatives = alternatives.map((alternative) =>
-    summarizeChoice(alternative, componentSource),
+    summarizeChoice(alternative, componentSource, { usedFallback: alternative.usedFallback }),
   );
   const recommended = summarizedAlternatives[0];
   const adjustedItem = calculateAdjustedItem(originalItem, componentSource, recommended);
@@ -225,14 +457,14 @@ const buildComponentAlternativeBlock = ({
       totalFats: mealTotals.fats,
     },
     componentSource,
-    recommended,
+    adjustedItem,
   );
 
   return {
     originalItemId: originalItem.id,
     originalItemName: originalItem.name,
     replaceableComponent: component,
-    alternatives: summarizedAlternatives,
+    alternatives: summarizedAlternatives.slice(0, 5),
     recommended,
     previewImpact: preview.previewImpact,
     previewTotals: {
@@ -240,6 +472,8 @@ const buildComponentAlternativeBlock = ({
       meal: nestedPreviewTotals.meal,
       day: nestedPreviewTotals.day,
     },
+    isSafeSwap: recommended.isSafeSwap,
+    confidence: recommended.confidence,
   };
 };
 
@@ -262,11 +496,11 @@ const buildItemAlternatives = async ({
       category,
       originalId: normalizedItem.id,
     });
-    const filteredCandidates = filterCandidates(candidates, component).map((food) => normalizeFood(food));
-    const alternatives = getValidAlternatives(filteredCandidates, component, normalizedItem).slice(0, limit);
+    const filteredCandidates = filterCandidates(candidates, component).map((food) => normalizeForMatch(food));
+    const alternatives = getValidAlternatives(filteredCandidates, component, normalizedItem, category).slice(0, limit);
     const componentSource = findComponentReferenceFood({
       component,
-      foods: foods.map((food) => normalizeFood(food)),
+      foods: foods.map((food) => normalizeForMatch(food)),
       originalItem: normalizedItem,
     });
 
@@ -303,14 +537,16 @@ const buildItemAlternatives = async ({
               meal: mealTotals,
               day: dayTotals,
             },
-            reason: "no_valid_usda_match",
+            reason: "no_valid_match_after_fallback",
+            isSafeSwap: false,
+            confidence: "low",
           },
         ],
   };
 };
 
 const buildAlternativesForMealPlan = async (plan, { limit = 5 } = {}) => {
-  const foods = normalizeUsdaFoods(await mealRepo.findFoods()).map((food) => normalizeFood(food));
+  const foods = normalizeUsdaFoods(await mealRepo.findFoods()).map((food) => normalizeForMatch(food));
 
   const breakfastItems = Array.isArray(plan?.breakfast?.items) ? plan.breakfast.items : [];
   const lunchItems = Array.isArray(plan?.lunch?.items) ? plan.lunch.items : [];
@@ -355,4 +591,5 @@ module.exports = {
   getCandidates,
   getValidAlternatives,
   matchReplacement,
+  scaleReplacementPortion,
 };

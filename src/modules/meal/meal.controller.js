@@ -22,10 +22,9 @@ const generateMealPlan = async (req, res, next) => {
     );
     const cached = await getCache(cacheKey);
     if (cached) {
-      const formattedCached =
-        cached?.alternatives || cached?.alternativeSummary
-          ? mealService.formatMealPlanResponse(cached)
-          : cached;
+      const formattedCached = cached?.markdown
+        ? cached
+        : mealService.formatEssentialMealPlanResponse(cached);
       return res.json({
         success: true,
         data: {
@@ -44,12 +43,12 @@ const generateMealPlan = async (req, res, next) => {
       calories: plan.nutrition.targetCalories,
       dietType: 'any',
       isPremium: Boolean(req.user?.isPremium),
-      allergies: plan.nutrition.mealAllergies,
-      mealDislikes: plan.nutrition.mealDislikes,
+      allergies: plan.nutrition?.constraints?.mealAllergies || [],
+      mealDislikes: plan.nutrition?.constraints?.mealDislikes || [],
     });
 
     const data = {
-      ...mealService.formatMealPlanResponse(plan),
+      ...mealService.formatEssentialMealPlanResponse(plan),
       aiSuggestions,
       cached: false,
     };
@@ -79,7 +78,13 @@ const getAlternatives = async (req, res, next) => {
 const getLatestMealPlan = async (req, res, next) => {
   try {
     const plan = await mealService.getLatestMealPlan(req.user.id);
-    return res.json({ success: true, data: plan });
+    return res.json({
+      success: true,
+      data: {
+        ...plan,
+        plan: mealService.formatEssentialMealPlanResponse(plan.plan),
+      },
+    });
   } catch (err) {
     return next(err);
   }

@@ -1,5 +1,6 @@
-const { createFood, findFoods } = require("../modules/meal/meal.repository");
+const { createFood, findFoods, updateFoodNutrition } = require("../modules/meal/meal.repository");
 const { fetchFoodsFromUSDA } = require("../integrations/usda/usda.service");
+const { normalizeUsdaFood } = require("../modules/food-intelligence/food.usda.service");
 const { transformUSDAFood } = require("../utils/transformFood");
 
 const DEFAULT_QUERY_GROUPS = [
@@ -25,18 +26,47 @@ const DEFAULT_QUERY_GROUPS = [
   { query: "nuts", category: "snack" },
 ];
 
+const buildMetrics = (foods = []) => ({
+  totalFoods: foods.length,
+  validFoods: foods.filter((food) => ["valid", "valid_assumed_100g"].includes(food.nutritionStatus)).length,
+  assumed100gFoods: foods.filter((food) => food.nutritionStatus === "valid_assumed_100g").length,
+  stillInvalidFoods: foods.filter((food) => !["valid", "valid_assumed_100g"].includes(food.nutritionStatus)).length,
+});
+
 const seedUSDAFoods = async ({ skipIfFoodsExist = true } = {}) => {
-  const existingFoods = await findFoods({ source: "usda" });
-  const seenNames = new Set(existingFoods.map((food) => food.name.trim().toLowerCase()));
+  const existingFoods = await findFoods();
+  const seenNames = new Set((await findFoods({ source: "usda" })).map((food) => food.name.trim().toLowerCase()));
   let inserted = 0;
   let skipped = 0;
+
+  const upgraded = [];
+  for (const food of existingFoods) {
+    if (food.nutritionStatus !== "invalid_missing_weight") continue;
+
+    const recovered = normalizeUsdaFood(food);
+    if (!["valid", "valid_assumed_100g"].includes(recovered.nutritionStatus)) continue;
+
+    await updateFoodNutrition(food.id, {
+      calories: recovered.calories,
+      protein: recovered.protein,
+      carbs: recovered.carbs,
+      fats: recovered.fats,
+      weightGrams: recovered.weightGrams,
+      nutritionStatus: recovered.nutritionStatus,
+      normalizationSource: recovered.normalizationSource,
+      confidence: recovered.confidence,
+      foodRole: recovered.foodRole,
+    });
+
+    upgraded.push(recovered);
+  }
 
   for (const { query, category } of DEFAULT_QUERY_GROUPS) {
     const foods = await fetchFoodsFromUSDA(query);
 
     for (const food of foods) {
       const transformed = transformUSDAFood(food, { query, category });
-      if (!transformed || !transformed.name || !transformed.calories) {
+      if (!transformed || !transformed.name) {
         skipped += 1;
         continue;
       }
@@ -55,20 +85,30 @@ const seedUSDAFoods = async ({ skipIfFoodsExist = true } = {}) => {
         protein: transformed.protein,
         carbs: transformed.carbs,
         fats: transformed.fats,
+        weightGrams: transformed.weightGrams,
         category: transformed.category,
         dietType: transformed.diet_type || "balanced",
         source: transformed.source || "usda",
         normalizedName: transformed.normalizedName,
         componentTags: transformed.componentTags,
+        nutritionStatus: transformed.nutritionStatus || "valid",
+        foodRole: transformed.foodRole || null,
+        normalizationSource: transformed.normalizationSource || null,
+        confidence: transformed.confidence ?? null,
       });
 
       inserted += 1;
     }
   }
 
+  const allFoods = await findFoods();
+  const metrics = buildMetrics(allFoods);
+
   return {
     inserted,
     skipped,
+    upgraded: upgraded.length,
+    metrics,
     alreadySeeded: skipIfFoodsExist && inserted === 0,
   };
 };

@@ -9,6 +9,7 @@ const mapFoodRow = (row) => {
     protein: row.protein,
     carbs: row.carbs,
     fats: row.fats,
+    weightGrams: row.weight_grams,
     category: row.category,
     dietType: row.diet_type,
     source: row.source || 'manual',
@@ -16,6 +17,10 @@ const mapFoodRow = (row) => {
     componentTags: row.component_tags ? JSON.parse(row.component_tags) : [],
     ingredients: row.ingredients ? JSON.parse(row.ingredients) : [],
     instructions: row.instructions ? JSON.parse(row.instructions) : [],
+    nutritionStatus: row.nutrition_status || null,
+    foodRole: row.food_role || null,
+    normalizationSource: row.normalization_source || null,
+    confidence: row.confidence !== null && row.confidence !== undefined ? Number(row.confidence) : null,
   };
 };
 
@@ -57,6 +62,7 @@ const createFood = async (data) => {
     protein,
     carbs,
     fats,
+    weightGrams,
     category,
     dietType,
     source,
@@ -64,18 +70,23 @@ const createFood = async (data) => {
     componentTags,
     ingredients,
     instructions,
+    nutritionStatus,
+    foodRole,
+    normalizationSource,
+    confidence,
   } = data;
 
   const [result] = await db.query(
     `INSERT INTO foods
-      (name, calories, protein, carbs, fats, category, diet_type, source, normalized_name, component_tags, ingredients, instructions, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      (name, calories, protein, carbs, fats, weight_grams, category, diet_type, source, normalized_name, component_tags, ingredients, instructions, nutrition_status, food_role, normalization_source, confidence, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
     [
       name,
       calories,
       protein,
       carbs,
       fats,
+      weightGrams ?? null,
       category,
       dietType || 'any',
       source || 'manual',
@@ -83,6 +94,10 @@ const createFood = async (data) => {
       componentTags ? JSON.stringify(componentTags) : null,
       ingredients ? JSON.stringify(ingredients) : null,
       instructions ? JSON.stringify(instructions) : null,
+      nutritionStatus || null,
+      foodRole || null,
+      normalizationSource || null,
+      confidence ?? null,
     ]
   );
 
@@ -99,6 +114,42 @@ const updateFoodMetadata = async (foodId, { normalizedName, componentTags }) => 
     [
       normalizedName || null,
       componentTags ? JSON.stringify(componentTags) : null,
+      foodId,
+    ],
+  );
+  const [rows] = await db.query('SELECT * FROM foods WHERE id = ? LIMIT 1', [foodId]);
+  return mapFoodRow(rows[0]);
+};
+
+const updateFoodNutrition = async (
+  foodId,
+  {
+    calories,
+    protein,
+    carbs,
+    fats,
+    weightGrams,
+    nutritionStatus,
+    normalizationSource,
+    confidence,
+    foodRole,
+  },
+) => {
+  const db = getDb();
+  await db.query(
+    `UPDATE foods
+     SET calories = ?, protein = ?, carbs = ?, fats = ?, weight_grams = ?, nutrition_status = ?, normalization_source = ?, confidence = ?, food_role = ?, updated_at = NOW()
+     WHERE id = ?`,
+    [
+      calories,
+      protein,
+      carbs,
+      fats,
+      weightGrams ?? null,
+      nutritionStatus || null,
+      normalizationSource || null,
+      confidence ?? null,
+      foodRole || null,
       foodId,
     ],
   );
@@ -138,6 +189,7 @@ module.exports = {
   findFoods,
   createFood,
   updateFoodMetadata,
+  updateFoodNutrition,
   findFoodComponentsByFoodId,
   replaceFoodComponents,
 };

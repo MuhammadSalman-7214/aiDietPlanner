@@ -18,6 +18,11 @@ const COMPONENT_MAP = {
   oats: ["oat", "oats", "oatmeal", "porridge"],
   bread: ["bread", "bagel", "bagels", "bun", "toast", "wrap"],
   wrap: ["wrap", "tortilla"],
+  potato: ["potato", "potatoes", "sweet potato"],
+  fish: ["fish", "salmon", "tuna", "cod", "tilapia"],
+  dairy: ["milk", "yogurt", "cheese", "cottage cheese", "kefir"],
+  nuts: ["nuts", "almond", "almonds", "walnut", "walnuts", "peanut", "peanuts"],
+  avocado: ["avocado"],
   vegetable: [
     "vegetable",
     "vegetables",
@@ -30,7 +35,7 @@ const COMPONENT_MAP = {
 };
 
 const PROTEIN_COMPONENTS = new Set(["egg", "chicken", "turkey", "beef", "tofu", "beans"]);
-const CARB_COMPONENTS = new Set(["rice", "quinoa", "oats", "bread", "wrap"]);
+const CARB_COMPONENTS = new Set(["rice", "quinoa", "oats", "bread", "wrap", "potato"]);
 
 const getComponentVariants = (component) => COMPONENT_MAP[component] || [component];
 

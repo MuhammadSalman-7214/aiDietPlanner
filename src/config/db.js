@@ -187,6 +187,7 @@ const ensureSchema = async (db) => {
       protein INT NOT NULL,
       carbs INT NOT NULL,
       fats INT NOT NULL,
+      weight_grams DECIMAL(8,2) NULL,
       category ENUM('breakfast','lunch','dinner','snack') NOT NULL,
       diet_type VARCHAR(50) NOT NULL DEFAULT 'any',
       source VARCHAR(20) NOT NULL DEFAULT 'manual',
@@ -194,14 +195,23 @@ const ensureSchema = async (db) => {
       component_tags TEXT NULL,
       ingredients TEXT NULL,
       instructions TEXT NULL,
+      nutrition_status VARCHAR(40) NULL,
+      food_role VARCHAR(20) NULL,
+      normalization_source VARCHAR(40) NULL,
+      confidence DECIMAL(3,2) NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `); // NUTRITION LOGS
 
   await ensureColumn(db, "foods", "source", "`source` VARCHAR(20) NOT NULL DEFAULT 'manual'");
+  await ensureColumn(db, "foods", "weight_grams", "`weight_grams` DECIMAL(8,2) NULL");
   await ensureColumn(db, "foods", "normalized_name", "`normalized_name` VARCHAR(255) NULL");
   await ensureColumn(db, "foods", "component_tags", "`component_tags` TEXT NULL");
+  await ensureColumn(db, "foods", "nutrition_status", "`nutrition_status` VARCHAR(40) NULL");
+  await ensureColumn(db, "foods", "food_role", "`food_role` VARCHAR(20) NULL");
+  await ensureColumn(db, "foods", "normalization_source", "`normalization_source` VARCHAR(40) NULL");
+  await ensureColumn(db, "foods", "confidence", "`confidence` DECIMAL(3,2) NULL");
   await ensureIndex(
     db,
     "foods",
