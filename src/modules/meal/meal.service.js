@@ -231,13 +231,13 @@ const selectBalancedMealItems = ({ foods = [], mealCategory, targetCalories, pre
         best = { items, score };
       }
       if (isMealSelectionValid(items, targetCalories)) {
-        return buildMealSelectionFromCombo(items);
+        return scaleMealSelectionToTarget(buildMealSelection(items), targetCalories);
       }
     }
   }
 
   const bestItems = best.items.length > 0 ? best.items : pickTopFoods(pools.all, 3);
-  return buildMealSelectionFromCombo(uniqueFoods(bestItems));
+  return scaleMealSelectionToTarget(buildMealSelection(uniqueFoods(bestItems)), targetCalories);
 };
 
 const summarizeFoodItem = (food) => {
@@ -343,6 +343,43 @@ const buildMealSelection = (items = []) => ({
   totals: aggregateTotals(items),
 });
 
+const scaleMealSelectionToTarget = (selection = {}, targetCalories = 0) => {
+  const items = Array.isArray(selection?.items) ? selection.items : [];
+  if (items.length === 0) {
+    return {
+      items: [],
+      totals: aggregateTotals([]),
+    };
+  }
+
+  const currentTotals = selection?.totals || aggregateTotals(items);
+  const currentCalories = safeNumber(currentTotals.calories);
+  const target = safeNumber(targetCalories);
+  if (currentCalories <= 0 || target <= 0) {
+    return {
+      items,
+      totals: aggregateTotals(items),
+    };
+  }
+
+  const scaleFactor = target / currentCalories;
+  const scaledItems = items.map((item) => ({
+    ...item,
+    calories: roundValue(safeNumber(item.calories) * scaleFactor),
+    protein: roundValue(safeNumber(item.protein) * scaleFactor),
+    carbs: roundValue(safeNumber(item.carbs) * scaleFactor),
+    fats: roundValue(safeNumber(item.fats) * scaleFactor),
+    weightGrams: item.weightGrams === null || item.weightGrams === undefined
+      ? item.weightGrams
+      : roundValue(safeNumber(item.weightGrams) * scaleFactor),
+  }));
+
+  return {
+    items: scaledItems,
+    totals: aggregateTotals(scaledItems),
+  };
+};
+
 const markdownEscape = (value) =>
   String(value ?? "")
     .replace(/\|/g, "\\|")
@@ -353,12 +390,12 @@ const roundCalories = (value) => Math.round(safeNumber(value));
 const roundMacro = (value) => Math.round(safeNumber(value) * 10) / 10;
 
 const buildUserSummary = (stats = {}) => ({
-  age: stats.age ?? null,
+  age: stats.age === null || stats.age === undefined ? null : Math.round(safeNumber(stats.age)),
   gender: stats.gender ?? null,
   goal: stats.goal ?? null,
   activityLevel: stats.activityLevel ?? null,
-  heightCm: stats.heightCm ?? null,
-  weightKg: stats.weightKg ?? null,
+  heightCm: stats.heightCm === null || stats.heightCm === undefined ? null : roundMacro(stats.heightCm),
+  weightKg: stats.weightKg === null || stats.weightKg === undefined ? null : roundMacro(stats.weightKg),
 });
 
 const hasConstraintViolation = (items = [], constraints = {}) => {
@@ -458,6 +495,7 @@ const extractSwapSuggestions = (alternatives = {}) => {
     for (const block of blocks) {
       for (const componentBlock of Array.isArray(block.components) ? block.components : []) {
         if (!componentBlock?.recommended || componentBlock.reason === "no_valid_match_after_fallback") continue;
+        if (componentBlock.isSafeSwap === false || componentBlock.recommended?.isSafeSwap === false) continue;
         formatted.push({
           meal: mealLabel,
           currentItem: block.currentItem?.name || block.itemName || block.originalItemName || "Unknown item",
@@ -566,13 +604,15 @@ const formatEssentialMealPlanResponse = (plan) => {
   if (!plan || typeof plan !== "object") return plan;
 
   const constraints = plan.nutrition?.constraints || {};
-  const userSummary = plan.nutrition?.userSummary || buildUserSummary(plan.nutrition?.profile || plan.nutrition?.user || {});
+  const userSummary = buildUserSummary(
+    plan.nutrition?.userSummary || plan.nutrition?.profile || plan.nutrition?.user || {},
+  );
   const dailyTargets = {
-    calories: safeNumber(plan.nutrition?.targetCalories),
+    calories: roundCalories(plan.nutrition?.targetCalories),
     macros: {
-      protein: safeNumber(plan.nutrition?.macros?.protein),
-      carbs: safeNumber(plan.nutrition?.macros?.carbs),
-      fats: safeNumber(plan.nutrition?.macros?.fats),
+      protein: roundMacro(plan.nutrition?.macros?.protein),
+      carbs: roundMacro(plan.nutrition?.macros?.carbs),
+      fats: roundMacro(plan.nutrition?.macros?.fats),
     },
   };
 
@@ -622,11 +662,11 @@ const formatEssentialMealPlanResponse = (plan) => {
     userSummary,
     dailyNutritionTargets: dailyTargets,
     actualDailyTotals: {
-      calories: roundCalories(actualTotals.calories),
-      macros: {
-        protein: roundMacro(actualTotals.protein),
-        carbs: roundMacro(actualTotals.carbs),
-        fats: roundMacro(actualTotals.fats),
+    calories: roundCalories(actualTotals.calories),
+    macros: {
+      protein: roundMacro(actualTotals.protein),
+      carbs: roundMacro(actualTotals.carbs),
+      fats: roundMacro(actualTotals.fats),
       },
       macroPercentages: actualMacroPercentages,
       gap: {
