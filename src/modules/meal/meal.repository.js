@@ -54,6 +54,12 @@ const findFoods = async (query = {}) => {
   return rows.map(mapFoodRow);
 };
 
+const hasFoods = async () => {
+  const db = getDb();
+  const [rows] = await db.query('SELECT 1 FROM foods LIMIT 1');
+  return rows.length > 0;
+};
+
 const createFood = async (data) => {
   const db = getDb();
   const {
@@ -187,6 +193,7 @@ const replaceFoodComponents = async (foodId, components = []) => {
 
 module.exports = {
   findFoods,
+  hasFoods,
   createFood,
   updateFoodMetadata,
   updateFoodNutrition,

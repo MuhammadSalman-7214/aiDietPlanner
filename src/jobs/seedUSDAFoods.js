@@ -1,4 +1,4 @@
-const { createFood, findFoods, updateFoodNutrition } = require("../modules/meal/meal.repository");
+const { createFood, findFoods, hasFoods, updateFoodNutrition } = require("../modules/meal/meal.repository");
 const { fetchFoodsFromUSDA } = require("../integrations/usda/usda.service");
 const { normalizeUsdaFood } = require("../modules/food-intelligence/food.usda.service");
 const { transformUSDAFood } = require("../utils/transformFood");
@@ -33,9 +33,20 @@ const buildMetrics = (foods = []) => ({
   stillInvalidFoods: foods.filter((food) => !["valid", "valid_assumed_100g"].includes(food.nutritionStatus)).length,
 });
 
-const seedUSDAFoods = async ({ skipIfFoodsExist = true } = {}) => {
-  const existingFoods = await findFoods();
-  const seenNames = new Set((await findFoods({ source: "usda" })).map((food) => food.name.trim().toLowerCase()));
+const seedUSDAFoods = async ({ skipIfFoodsExist = true, recoverExistingFoods = false } = {}) => {
+  const foodsExist = await hasFoods();
+  if (skipIfFoodsExist && foodsExist && !recoverExistingFoods) {
+    return {
+      inserted: 0,
+      skipped: 0,
+      upgraded: 0,
+      metrics: null,
+      alreadySeeded: true,
+    };
+  }
+
+  const existingFoods = foodsExist ? await findFoods() : [];
+  const seenNames = new Set((foodsExist ? await findFoods({ source: "usda" }) : []).map((food) => food.name.trim().toLowerCase()));
   let inserted = 0;
   let skipped = 0;
 
@@ -109,7 +120,7 @@ const seedUSDAFoods = async ({ skipIfFoodsExist = true } = {}) => {
     skipped,
     upgraded: upgraded.length,
     metrics,
-    alreadySeeded: skipIfFoodsExist && inserted === 0,
+    alreadySeeded: skipIfFoodsExist && foodsExist && inserted === 0,
   };
 };
 

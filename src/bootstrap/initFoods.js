@@ -1,10 +1,13 @@
 const { seedUSDAFoods } = require('../jobs/seedUSDAFoods');
 
-const initFoodsIfEmpty = async () => {
+const initFoodsIfEmpty = async ({ recoverExistingFoods = false } = {}) => {
   try {
-    const result = await seedUSDAFoods({ skipIfFoodsExist: true });
+    const result = await seedUSDAFoods({
+      skipIfFoodsExist: true,
+      recoverExistingFoods,
+    });
     if (result.alreadySeeded) {
-      console.log('Foods already exist. Running nutrition recovery only.');
+      console.log('Foods already exist. Skipping bootstrap on startup.');
       return result;
     }
 

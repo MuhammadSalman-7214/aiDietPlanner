@@ -11,9 +11,12 @@ const PORT = process.env.PORT || 4000;
   try {
     await connectDB();
     await initRedis();
-    await initFoodsIfEmpty();
     app.listen(PORT, () => {
       logger.info(`Server running on port ${PORT}`);
+    });
+    const recoverExistingFoods = process.env.RUN_FOOD_RECOVERY_ON_START === "true";
+    void initFoodsIfEmpty({ recoverExistingFoods }).catch((err) => {
+      logger.error({ err }, "Food bootstrap failed after server start");
     });
   } catch (err) {
     logger.error({ err }, "Failed to start server");
