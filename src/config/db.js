@@ -189,12 +189,48 @@ const ensureSchema = async (db) => {
       fats INT NOT NULL,
       category ENUM('breakfast','lunch','dinner','snack') NOT NULL,
       diet_type VARCHAR(50) NOT NULL DEFAULT 'any',
+      source VARCHAR(20) NOT NULL DEFAULT 'manual',
+      normalized_name VARCHAR(255) NULL,
+      component_tags TEXT NULL,
       ingredients TEXT NULL,
       instructions TEXT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `); // NUTRITION LOGS
+
+  await ensureColumn(db, "foods", "source", "`source` VARCHAR(20) NOT NULL DEFAULT 'manual'");
+  await ensureColumn(db, "foods", "normalized_name", "`normalized_name` VARCHAR(255) NULL");
+  await ensureColumn(db, "foods", "component_tags", "`component_tags` TEXT NULL");
+  await ensureIndex(
+    db,
+    "foods",
+    "idx_foods_category_normalized_name",
+    "ADD INDEX idx_foods_category_normalized_name (`category`, `normalized_name`)",
+  );
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS food_components (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      food_id INT UNSIGNED NOT NULL,
+      component_name VARCHAR(255) NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_food_components_food FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE CASCADE
+    )
+  `);
+  await ensureIndex(
+    db,
+    "food_components",
+    "idx_food_components_food_id",
+    "ADD INDEX idx_food_components_food_id (`food_id`)",
+  );
+  await ensureIndex(
+    db,
+    "food_components",
+    "idx_food_components_component_name",
+    "ADD INDEX idx_food_components_component_name (`component_name`)",
+  );
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS nutrition_logs (

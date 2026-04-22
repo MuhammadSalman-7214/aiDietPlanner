@@ -22,10 +22,14 @@ const generateMealPlan = async (req, res, next) => {
     );
     const cached = await getCache(cacheKey);
     if (cached) {
+      const formattedCached =
+        cached?.alternatives || cached?.alternativeSummary
+          ? mealService.formatMealPlanResponse(cached)
+          : cached;
       return res.json({
         success: true,
         data: {
-          ...cached,
+          ...formattedCached,
           cached: true,
         },
       });
@@ -45,7 +49,7 @@ const generateMealPlan = async (req, res, next) => {
     });
 
     const data = {
-      ...plan,
+      ...mealService.formatMealPlanResponse(plan),
       aiSuggestions,
       cached: false,
     };

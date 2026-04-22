@@ -11,74 +11,19 @@ const { AppError } = require("../../middlewares/error.middleware");
 const { getOpenAIClient } = require("../../config/openai");
 const { validateAIMealSuggestion } = require("../../utils/validateAIResponse");
 const logger = require("../../utils/logger");
+const {
+  normalizeUsdaFood,
+  normalizeUsdaFoods,
+  safeNumber,
+} = require("../food-intelligence/food.usda.service");
+const {
+  buildAlternativesForMealPlan,
+  aggregateTotals,
+  buildItemAlternatives,
+} = require("../food-intelligence/food.alternative.service");
 
 const DEFAULT_MEALS_COUNT = 3;
-const DEFAULT_ALTERNATIVE_LIMIT = 4;
-
-const FOOD_FAMILY_RULES = [
-  {
-    family: "egg",
-    patterns: [
-      "egg white",
-      "egg",
-      "omelette",
-      "scramble",
-      "frittata",
-      "quiche",
-    ],
-  },
-  {
-    family: "oat",
-    patterns: ["oatmeal", "oats", "overnight oats", "porridge"],
-  },
-  { family: "yogurt", patterns: ["yogurt", "parfait", "skyr"] },
-  { family: "chicken", patterns: ["chicken", "poultry"] },
-  { family: "turkey", patterns: ["turkey"] },
-  {
-    family: "fish",
-    patterns: ["salmon", "tuna", "fish", "seafood", "cod", "trout", "tilapia"],
-  },
-  { family: "beef", patterns: ["beef", "steak", "burger", "meatballs"] },
-  { family: "tofu", patterns: ["tofu", "tempeh", "edamame"] },
-  {
-    family: "grain",
-    patterns: [
-      "rice",
-      "quinoa",
-      "pasta",
-      "couscous",
-      "bulgur",
-      "barley",
-      "noodle",
-    ],
-  },
-  {
-    family: "bread",
-    patterns: ["bagel", "bread", "toast", "wrap", "sandwich", "bun"],
-  },
-  { family: "salad", patterns: ["salad", "greens", "vegetable bowl"] },
-  {
-    family: "fruit",
-    patterns: [
-      "fruit",
-      "apple",
-      "banana",
-      "berries",
-      "orange",
-      "pear",
-      "grape",
-    ],
-  },
-  {
-    family: "nuts",
-    patterns: ["nuts", "peanut", "almond", "walnut", "seed", "trail mix"],
-  },
-  { family: "shake", patterns: ["shake", "smoothie", "protein drink"] },
-  {
-    family: "dairy",
-    patterns: ["milk", "cheese", "cottage", "cream", "ricotta"],
-  },
-];
+const DEFAULT_ALTERNATIVE_LIMIT = 5;
 
 const normalizeList = (value) => {
   if (!value) return [];
@@ -86,18 +31,13 @@ const normalizeList = (value) => {
     return value.map((item) => String(item).trim()).filter(Boolean);
   }
   if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+    return value.split(",").map((item) => item.trim()).filter(Boolean);
   }
   return [];
 };
 
 const dedupeList = (items) => [
-  ...new Set(
-    items.map((item) => String(item).trim().toLowerCase()).filter(Boolean),
-  ),
+  ...new Set(items.map((item) => String(item).trim().toLowerCase()).filter(Boolean)),
 ];
 
 const mergeLists = (...lists) =>
@@ -110,585 +50,23 @@ const normalizeText = (value) =>
     .replace(/\s+/g, " ")
     .trim();
 
-const safeNumber = (value) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : 0;
-};
-
-const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-const roundValue = (value) => Math.round((Number(value) || 0) * 10) / 10;
-
 const summarizeFoodItem = (food) => {
   if (!food) return null;
+  const normalizedFood = normalizeUsdaFood(food);
   return {
-    id: food.id,
-    name: food.name,
-    calories: safeNumber(food.calories),
-    protein: safeNumber(food.protein),
-    carbs: safeNumber(food.carbs),
-    fats: safeNumber(food.fats),
-    category: food.category,
-    dietType: food.dietType,
-    ingredients: Array.isArray(food.ingredients) ? food.ingredients : [],
-    instructions: Array.isArray(food.instructions) ? food.instructions : [],
-  };
-};
-
-const getFoodFamily = (food) => {
-  const text = normalizeText(
-    [
-      food?.name,
-      ...(Array.isArray(food?.ingredients) ? food.ingredients : []),
-      ...(Array.isArray(food?.instructions) ? food.instructions : []),
-    ].join(" "),
-  );
-
-  for (const rule of FOOD_FAMILY_RULES) {
-    if (rule.patterns.some((pattern) => text.includes(pattern))) {
-      return rule.family;
-    }
-  }
-
-  return food?.category || "general";
-};
-
-const getFoodTokens = (food) => {
-  const text = normalizeText(
-    [
-      food?.name,
-      ...(Array.isArray(food?.ingredients) ? food.ingredients : []),
-    ].join(" "),
-  );
-
-  return new Set(text.split(" ").filter((token) => token.length > 2));
-};
-
-const COMPONENT_PRIORITY = {
-  egg: 100,
-  chicken: 95,
-  fish: 94,
-  turkey: 93,
-  beef: 92,
-  tofu: 91,
-  yogurt: 88,
-  dairy: 82,
-  oat: 70,
-  grain: 68,
-  bread: 64,
-  salad: 56,
-  fruit: 46,
-  nuts: 40,
-  shake: 36,
-  general: 20,
-};
-
-const splitItemParts = (food) => {
-  const name = String(food?.name || "");
-  return name
-    .split(/,|\/|&|\bwith\b|\band\b/gi)
-    .map((part) => part.trim())
-    .filter(Boolean);
-};
-
-const detectReplaceableComponent = (food) => {
-  const parts = splitItemParts(food);
-  const candidates = (parts.length > 1 ? parts : [food?.name || ""])
-    .map((part) => {
-      const normalizedPart = normalizeText(part);
-      const partFood = {
-        ...food,
-        name: normalizedPart,
-        ingredients: [normalizedPart],
-      };
-      const family = getFoodFamily(partFood);
-      return {
-        value: normalizedPart || normalizeText(food?.name || ""),
-        family,
-        priority: COMPONENT_PRIORITY[family] ?? COMPONENT_PRIORITY.general,
-        length: normalizedPart.length,
-      };
-    })
-    .filter((part) => part.value);
-
-  if (candidates.length === 0) {
-    const family = getFoodFamily(food);
-    return {
-      value: family,
-      family,
-    };
-  }
-
-  candidates.sort((a, b) => {
-    if (b.priority !== a.priority) return b.priority - a.priority;
-    if (a.length !== b.length) return a.length - b.length;
-    return a.value.localeCompare(b.value);
-  });
-
-  const selected = candidates[0];
-  return {
-    value: selected.value,
-    family: selected.family,
-  };
-};
-
-const normalizeSimilarity = (baseValue, candidateValue) => {
-  const denominator = Math.max(safeNumber(baseValue), safeNumber(candidateValue), 1);
-  return clamp(1 - Math.abs(safeNumber(baseValue) - safeNumber(candidateValue)) / denominator, 0, 1);
-};
-
-const caloriesWithinTolerance = (baseFood, candidateFood) => {
-  const baseCalories = safeNumber(baseFood.calories);
-  const candidateCalories = safeNumber(candidateFood.calories);
-  const limit = Math.max(baseCalories * 0.25, 1);
-  return Math.abs(candidateCalories - baseCalories) <= limit;
-};
-
-const macroSimilarityScore = (baseFood, candidateFood) => {
-  const calorieSimilarity = normalizeSimilarity(baseFood.calories, candidateFood.calories);
-  const proteinSimilarity = normalizeSimilarity(baseFood.protein, candidateFood.protein);
-  const carbsSimilarity = normalizeSimilarity(baseFood.carbs, candidateFood.carbs);
-  const fatsSimilarity = normalizeSimilarity(baseFood.fats, candidateFood.fats);
-
-  const weighted = (
-    calorieSimilarity * 0.4 +
-    proteinSimilarity * 0.3 +
-    carbsSimilarity * 0.2 +
-    fatsSimilarity * 0.1
-  );
-
-  return {
-    score: roundValue(weighted * 100),
-    calorieSimilarity,
-    proteinSimilarity,
-    carbsSimilarity,
-    fatsSimilarity,
-  };
-};
-
-const isDietTypeCompatible = (candidate, contextDietType) => {
-  const normalizedContextDietType = normalizeText(contextDietType);
-  if (!normalizedContextDietType || normalizedContextDietType === "any") return true;
-  const normalizedCandidateDietType = normalizeText(candidate.dietType);
-  return normalizedCandidateDietType === normalizedContextDietType || normalizedCandidateDietType === "any";
-};
-
-const componentMatchesFood = (candidateFood, replaceableComponent, family) => {
-  const candidateText = normalizeText(
-    [
-      candidateFood?.name,
-      ...(Array.isArray(candidateFood?.ingredients) ? candidateFood.ingredients : []),
-      ...(Array.isArray(candidateFood?.instructions) ? candidateFood.instructions : []),
-    ].join(" "),
-  );
-
-  if (!replaceableComponent) return true;
-  if (family && getFoodFamily(candidateFood) === family) return true;
-  if (candidateText.includes(replaceableComponent)) return true;
-  return false;
-};
-
-const scoreAlternativeFood = (baseFood, candidateFood, context = {}) => {
-  const similarity = macroSimilarityScore(baseFood, candidateFood);
-  const calorieDelta = roundValue(safeNumber(candidateFood.calories) - safeNumber(baseFood.calories));
-  const macroDelta = {
-    calories: calorieDelta,
-    protein: roundValue(safeNumber(candidateFood.protein) - safeNumber(baseFood.protein)),
-    carbs: roundValue(safeNumber(candidateFood.carbs) - safeNumber(baseFood.carbs)),
-    fats: roundValue(safeNumber(candidateFood.fats) - safeNumber(baseFood.fats)),
-  };
-
-  return {
-    food: candidateFood,
-    matchScore: similarity.score,
-    macroDelta,
-    calorieDelta,
-    similarity,
-  };
-};
-
-const buildCandidatePool = (foods, baseFood, context = {}) => {
-  const baseCategory = baseFood.category;
-  const replaceableComponent = context.replaceableComponent || detectReplaceableComponent(baseFood).value;
-  const replaceableFamily = context.replaceableFamily || detectReplaceableComponent(baseFood).family;
-  const categoryFoods = foods.filter((food) => food.category === baseCategory && food.id !== baseFood.id);
-  const dietCompatibleFoods = categoryFoods.filter((food) =>
-    isDietTypeCompatible(food, context.dietType || context.dietTypePreference),
-  );
-
-  const categoryPool = dietCompatibleFoods.length > 0 ? dietCompatibleFoods : categoryFoods;
-  const componentPool = categoryPool.filter((food) => componentMatchesFood(food, replaceableComponent, replaceableFamily));
-  const pool = componentPool.length > 0 ? componentPool : categoryPool;
-
-  return pool.filter((food) => caloriesWithinTolerance(baseFood, food));
-};
-
-const buildAlternativeBlock = ({
-  plan,
-  mealSelection,
-  item,
-  mealType,
-  itemIndex,
-  foods,
-  resolvedContext,
-  alternativeLimit = DEFAULT_ALTERNATIVE_LIMIT,
-}) => {
-  const component = detectReplaceableComponent(item);
-  const candidatePool = buildCandidatePool(foods, item, {
-    dietType: resolvedContext.dietType,
-    replaceableComponent: component.value,
-    replaceableFamily: component.family,
-  });
-
-  const ranked = candidatePool
-    .map((food) => scoreAlternativeFood(item, food, {
-      replaceableComponent: component.value,
-      replaceableFamily: component.family,
-    }))
-    .sort((a, b) => {
-      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
-      return a.calorieDelta - b.calorieDelta;
-    })
-    .slice(0, alternativeLimit);
-
-  const recommendedFood = ranked[0]?.food || null;
-  const simulatedPlan = recommendedFood
-    ? replaceItemInMeal(plan, {
-        mealType,
-        itemIndex,
-        snackIndex: mealSelection.snackIndex,
-      }, recommendedFood)
-    : plan;
-
-  return {
-    originalItemId: item.id,
-    originalItemName: item.name,
-    replaceableComponent: component.value,
-    category: item.category,
-    alternatives: ranked.map((entry) => ({
-      id: entry.food.id,
-      name: entry.food.name,
-      calories: safeNumber(entry.food.calories),
-      protein: safeNumber(entry.food.protein),
-      carbs: safeNumber(entry.food.carbs),
-      fats: safeNumber(entry.food.fats),
-      matchScore: entry.matchScore,
-      macroDelta: entry.macroDelta,
-    })),
-    recommended: recommendedFood
-      ? {
-          id: recommendedFood.id,
-          name: recommendedFood.name,
-        }
-      : null,
-    previewTotals: recommendedFood
-      ? aggregatePlanTotals(simulatedPlan)
-      : aggregatePlanTotals(plan),
-  };
-};
-
-const mapMealForAlternatives = ({
-  plan,
-  mealSelection,
-  mealType,
-  foods,
-  resolvedContext,
-  alternativeLimit = DEFAULT_ALTERNATIVE_LIMIT,
-}) => {
-  const items = Array.isArray(mealSelection?.items) ? mealSelection.items : [];
-  return items.map((item, itemIndex) =>
-    buildAlternativeBlock({
-      plan,
-      mealSelection,
-      item,
-      mealType,
-      itemIndex,
-      foods,
-      resolvedContext,
-      alternativeLimit,
-    }),
-  );
-};
-
-const sumMealTotals = (items = []) =>
-  items.reduce(
-    (acc, item) => {
-      acc.calories += safeNumber(item?.calories);
-      acc.protein += safeNumber(item?.protein);
-      acc.carbs += safeNumber(item?.carbs);
-      acc.fats += safeNumber(item?.fats);
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fats: 0 },
-  );
-
-const buildMealSelection = (items = [], extra = {}) => ({
-  items: items.map((item) => summarizeFoodItem(item)),
-  totals: sumMealTotals(items),
-  ...extra,
-});
-
-const getPlanMeals = (plan) => ({
-  breakfast: plan?.breakfast || {
-    items: [],
-    totals: { calories: 0, protein: 0, carbs: 0, fats: 0 },
-  },
-  lunch: plan?.lunch || {
-    items: [],
-    totals: { calories: 0, protein: 0, carbs: 0, fats: 0 },
-  },
-  dinner: plan?.dinner || {
-    items: [],
-    totals: { calories: 0, protein: 0, carbs: 0, fats: 0 },
-  },
-  snacks: Array.isArray(plan?.snacks) ? plan.snacks : [],
-});
-
-const aggregatePlanTotals = (plan) => {
-  const meals = getPlanMeals(plan);
-  const mealEntries = [
-    meals.breakfast?.items || [],
-    meals.lunch?.items || [],
-    meals.dinner?.items || [],
-    ...meals.snacks.map((meal) => meal.items || []),
-  ];
-
-  return mealEntries.flat().reduce(
-    (acc, item) => {
-      acc.calories += safeNumber(item?.calories);
-      acc.protein += safeNumber(item?.protein);
-      acc.carbs += safeNumber(item?.carbs);
-      acc.fats += safeNumber(item?.fats);
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fats: 0 },
-  );
-};
-
-const findMealItemInPlan = (plan, { mealType, itemId, itemName }) => {
-  const meals = getPlanMeals(plan);
-  const searchName = normalizeText(itemName);
-
-  const locateInSelection = (selection, label, snackIndex = null) => {
-    const items = Array.isArray(selection?.items) ? selection.items : [];
-    const matches = items
-      .map((item, index) => ({ item, index }))
-      .filter(({ item }) => {
-        if (
-          itemId !== undefined &&
-          itemId !== null &&
-          safeNumber(item.id) === safeNumber(itemId)
-        ) return true;
-        if (searchName && normalizeText(item.name) === searchName) return true;
-        if (searchName && normalizeText(item.name).includes(searchName)) return true;
-        return false;
-      });
-
-    return matches.map(({ item, index }) => ({
-      item,
-      mealType: label,
-      snackIndex,
-      itemIndex: index,
-    }));
-  };
-
-  if (mealType === "breakfast") return locateInSelection(meals.breakfast, "breakfast");
-  if (mealType === "lunch") return locateInSelection(meals.lunch, "lunch");
-  if (mealType === "dinner") return locateInSelection(meals.dinner, "dinner");
-  if (mealType === "snack") {
-    return meals.snacks.flatMap((meal, snackIndex) => locateInSelection(meal, "snack", snackIndex));
-  }
-
-  return [
-    ...locateInSelection(meals.breakfast, "breakfast"),
-    ...locateInSelection(meals.lunch, "lunch"),
-    ...locateInSelection(meals.dinner, "dinner"),
-    ...meals.snacks.flatMap((meal, snackIndex) => locateInSelection(meal, "snack", snackIndex)),
-  ];
-};
-
-const replaceItemInMeal = (plan, target, replacement) => {
-  const clone = {
-    ...plan,
-    breakfast: plan.breakfast
-      ? { ...plan.breakfast, items: [...plan.breakfast.items] }
-      : { items: [], totals: { calories: 0, protein: 0, carbs: 0, fats: 0 } },
-    lunch: plan.lunch
-      ? { ...plan.lunch, items: [...plan.lunch.items] }
-      : { items: [], totals: { calories: 0, protein: 0, carbs: 0, fats: 0 } },
-    dinner: plan.dinner
-      ? { ...plan.dinner, items: [...plan.dinner.items] }
-      : { items: [], totals: { calories: 0, protein: 0, carbs: 0, fats: 0 } },
-    snacks: Array.isArray(plan.snacks)
-      ? plan.snacks.map((meal) => ({ ...meal, items: [...(meal.items || [])] }))
-      : [],
-  };
-
-  const selection =
-    target.mealType === "breakfast"
-      ? clone.breakfast
-      : target.mealType === "lunch"
-        ? clone.lunch
-        : target.mealType === "dinner"
-          ? clone.dinner
-          : clone.snacks[target.snackIndex];
-
-  if (!selection) return null;
-
-  selection.items[target.itemIndex] = summarizeFoodItem(replacement);
-  selection.totals = sumMealTotals(selection.items);
-
-  return {
-    ...clone,
-    nutrition: plan.nutrition ? { ...plan.nutrition } : undefined,
-    mealTargets: plan.mealTargets ? { ...plan.mealTargets } : undefined,
-    breakfast: clone.breakfast,
-    lunch: clone.lunch,
-    dinner: clone.dinner,
-    snacks: clone.snacks,
-  };
-};
-
-const buildMealAlternativesForPlan = async ({
-  plan,
-  resolvedContext,
-  userId,
-  alternativeLimit = DEFAULT_ALTERNATIVE_LIMIT,
-}) => {
-  const foods = await mealRepo.findFoods();
-  const safeFoods = filterExcludedFoods(
-    foods,
-    resolvedContext.allergies,
-    resolvedContext.mealDislikes,
-  );
-  const meals = getPlanMeals(plan);
-
-  const breakfastAlternatives = mapMealForAlternatives({
-    plan,
-    mealSelection: meals.breakfast,
-    mealType: "breakfast",
-    foods: safeFoods,
-    resolvedContext,
-    alternativeLimit,
-  }).map((block) => block);
-
-  const lunchAlternatives = mapMealForAlternatives({
-    plan,
-    mealSelection: meals.lunch,
-    mealType: "lunch",
-    foods: safeFoods,
-    resolvedContext,
-    alternativeLimit,
-  }).map((block) => block);
-
-  const dinnerAlternatives = mapMealForAlternatives({
-    plan,
-    mealSelection: meals.dinner,
-    mealType: "dinner",
-    foods: safeFoods,
-    resolvedContext,
-    alternativeLimit,
-  }).map((block) => block);
-
-  const snackAlternatives = meals.snacks.map((meal, snackIndex) => ({
-    mealIndex: snackIndex + 1,
-    items: (Array.isArray(meal.items) ? meal.items : []).map((item, itemIndex) =>
-      buildAlternativeBlock({
-        plan,
-        mealSelection: { ...meal, snackIndex },
-        item,
-        mealType: "snack",
-        itemIndex,
-        foods: safeFoods,
-        resolvedContext,
-        alternativeLimit,
-      }),
-    ),
-  }));
-
-  return {
-    breakfast: breakfastAlternatives,
-    lunch: lunchAlternatives,
-    dinner: dinnerAlternatives,
-    snacks: snackAlternatives,
-    generatedAt: new Date().toISOString(),
-    source: userId ? "user_meal_plan" : "manual_override",
-  };
-};
-
-const buildMealPlanCore = async ({
-  userId,
-  mealsCount = DEFAULT_MEALS_COUNT,
-  resolvedContext,
-  includeAlternatives = true,
-}) => {
-  const context =
-    resolvedContext || (await resolveMealContext({ userId, mealsCount }));
-  const foods = await mealRepo.findFoods(
-    context.dietType !== "any" ? { dietType: context.dietType } : {},
-  );
-  const safeFoods = filterExcludedFoods(
-    foods,
-    context.allergies,
-    context.mealDislikes,
-  );
-  const prioritizedFoods = scoreFoodsByPreferences(
-    safeFoods,
-    context.mealPreferences,
-  );
-  const targets = buildMealTargets(context.calories, context.mealsCount);
-
-  const breakfastFoods = prioritizedFoods.filter(
-    (food) => food.category === "breakfast",
-  );
-  const lunchFoods = prioritizedFoods.filter(
-    (food) => food.category === "lunch",
-  );
-  const dinnerFoods = prioritizedFoods.filter(
-    (food) => food.category === "dinner",
-  );
-  const snackFoods = prioritizedFoods.filter(
-    (food) => food.category === "snack",
-  );
-
-  const breakfast = buildMealSelection(
-    pickFoodsForTarget(breakfastFoods, targets.breakfast).items,
-  );
-  const lunch = buildMealSelection(
-    pickFoodsForTarget(lunchFoods, targets.lunch).items,
-  );
-  const dinner = buildMealSelection(
-    pickFoodsForTarget(dinnerFoods, targets.dinner).items,
-  );
-  const snacks = targets.snacks.map((target) =>
-    buildMealSelection(pickFoodsForTarget(snackFoods, target).items),
-  );
-
-  const plan = {
-    nutrition: {
-      source: context.stats ? "user_profile" : "manual_override",
-      targetCalories: context.calories,
-      macros: context.macros,
-      mealsCount: context.mealsCount,
-    },
-    mealTargets: targets,
-    breakfast,
-    lunch,
-    dinner,
-    snacks,
-  };
-
-  if (!includeAlternatives) {
-    return plan;
-  }
-
-  return {
-    ...plan,
-    alternatives: await buildMealAlternativesForPlan({
-      plan,
-      resolvedContext: context,
-      userId,
-    }),
+    id: normalizedFood.id,
+    name: normalizedFood.name,
+    calories: safeNumber(normalizedFood.calories),
+    protein: safeNumber(normalizedFood.protein),
+    carbs: safeNumber(normalizedFood.carbs),
+    fats: safeNumber(normalizedFood.fats),
+    category: normalizedFood.category,
+    dietType: normalizedFood.dietType,
+    normalizedName: normalizedFood.normalizedName,
+    componentTags: normalizedFood.componentTags || [],
+    ingredients: Array.isArray(normalizedFood.ingredients) ? normalizedFood.ingredients : [],
+    instructions: Array.isArray(normalizedFood.instructions) ? normalizedFood.instructions : [],
+    source: normalizedFood.source,
   };
 };
 
@@ -729,51 +107,32 @@ const filterExcludedFoods = (foods, allergies = [], dislikes = []) => {
       food.name,
       ...(Array.isArray(food.ingredients) ? food.ingredients : []),
       ...(Array.isArray(food.instructions) ? food.instructions : []),
+      ...(Array.isArray(food.componentTags) ? food.componentTags : []),
     ]
-      .map((item) => String(item).toLowerCase())
+      .map((item) => normalizeText(item))
       .join(" ");
 
-    return !exclusions.some((item) => haystack.includes(item));
+    return !exclusions.some((item) => haystack.includes(normalizeText(item)));
   });
 };
 
-const pickFoodsForTarget = (foods, targetCalories) => {
-  if (!foods.length) {
-    return {
-      items: [],
-      totals: { calories: 0, protein: 0, carbs: 0, fats: 0 },
-    };
+const isPreferableMealFood = (food) => {
+  const name = normalizeText(food.name);
+  const calories = safeNumber(food.calories);
+  const protein = safeNumber(food.protein);
+  const carbs = safeNumber(food.carbs);
+  const fats = safeNumber(food.fats);
+  const macroCalories = protein * 4 + carbs * 4 + fats * 9;
+
+  if (!name || calories <= 0) return false;
+  if (["babyfood", "mechanically deboned", "tail", "feet", "skin"].some((term) => name.includes(term))) {
+    return false;
   }
-
-  const sorted = foods
-    .map((food) => ({ food, diff: Math.abs(targetCalories - food.calories) }))
-    .sort((a, b) => a.diff - b.diff)
-    .map((entry) => entry.food);
-
-  const items = [];
-  let remaining = targetCalories;
-
-  for (const food of sorted) {
-    if (items.length >= 3) break;
-    if (food.calories <= remaining || items.length === 0) {
-      items.push(food);
-      remaining -= food.calories;
-    }
-    if (remaining <= 150) break;
+  if (macroCalories > 0) {
+    const deviation = Math.abs(calories - macroCalories) / Math.max(calories, 1);
+    if (deviation > 0.2) return false;
   }
-
-  const totals = items.reduce(
-    (acc, item) => {
-      acc.calories += item.calories;
-      acc.protein += item.protein;
-      acc.carbs += item.carbs;
-      acc.fats += item.fats;
-      return acc;
-    },
-    { calories: 0, protein: 0, carbs: 0, fats: 0 },
-  );
-
-  return { items, totals };
+  return true;
 };
 
 const scoreFoodsByPreferences = (foods, preferences = []) => {
@@ -784,13 +143,14 @@ const scoreFoodsByPreferences = (foods, preferences = []) => {
     .map((food) => {
       const haystack = [
         food.name,
+        ...(Array.isArray(food.componentTags) ? food.componentTags : []),
         ...(Array.isArray(food.ingredients) ? food.ingredients : []),
       ]
-        .map((item) => String(item).toLowerCase())
+        .map((item) => normalizeText(item))
         .join(" ");
 
       const preferenceHits = normalizedPreferences.reduce(
-        (count, pref) => count + (haystack.includes(pref) ? 1 : 0),
+        (count, pref) => count + (haystack.includes(normalizeText(pref)) ? 1 : 0),
         0,
       );
 
@@ -798,6 +158,101 @@ const scoreFoodsByPreferences = (foods, preferences = []) => {
     })
     .sort((a, b) => b.preferenceHits - a.preferenceHits)
     .map((entry) => entry.food);
+};
+
+const pickFoodsForTarget = (foods, targetCalories) => {
+  if (!foods.length) {
+    return { items: [], totals: { calories: 0, protein: 0, carbs: 0, fats: 0 } };
+  }
+
+  const sorted = foods
+    .map((food) => ({ food, diff: Math.abs(targetCalories - safeNumber(food.calories)) }))
+    .sort((a, b) => a.diff - b.diff)
+    .map((entry) => entry.food);
+
+  const items = [];
+  let remaining = targetCalories;
+
+  for (const food of sorted) {
+    if (items.length >= 3) break;
+    if (safeNumber(food.calories) <= remaining || items.length === 0) {
+      items.push(food);
+      remaining -= safeNumber(food.calories);
+    }
+    if (remaining <= 150) break;
+  }
+
+  return {
+    items,
+    totals: aggregateTotals(items),
+  };
+};
+
+const buildMealSelection = (items = []) => ({
+  items: items.map((item) => summarizeFoodItem(item)),
+  totals: aggregateTotals(items),
+});
+
+const getPlanMeals = (plan) => ({
+  breakfast: plan?.breakfast || buildMealSelection([]),
+  lunch: plan?.lunch || buildMealSelection([]),
+  dinner: plan?.dinner || buildMealSelection([]),
+  snacks: Array.isArray(plan?.snacks) ? plan.snacks : [],
+});
+
+const buildAlternativeSummary = (alternatives = {}) => {
+  const summarizeMealItems = (items = []) =>
+    items.map((itemEntry) => ({
+      itemId: itemEntry.itemId,
+      itemName: itemEntry.itemName,
+      category: itemEntry.category,
+      currentItem: itemEntry.currentItem,
+      currentMacros: itemEntry.currentItem
+        ? {
+            calories: safeNumber(itemEntry.currentItem.calories),
+            protein: safeNumber(itemEntry.currentItem.protein),
+            carbs: safeNumber(itemEntry.currentItem.carbs),
+            fats: safeNumber(itemEntry.currentItem.fats),
+          }
+        : null,
+      replacementComponents: itemEntry.components.map((componentBlock) => ({
+        component: componentBlock.replaceableComponent,
+        recommended: componentBlock.recommended,
+        totalMatches: Array.isArray(componentBlock.alternatives)
+          ? componentBlock.alternatives.length
+          : 0,
+        bestMatches: Array.isArray(componentBlock.alternatives)
+          ? componentBlock.alternatives.slice(0, 3).map((alternative, index) => ({
+              rank: index + 1,
+              ...alternative,
+            }))
+          : [],
+        previewImpact: componentBlock.previewImpact,
+        previewTotals: componentBlock.previewTotals,
+        reason: componentBlock.reason || null,
+      })),
+    }));
+
+  return {
+    breakfast: summarizeMealItems(alternatives.breakfast || []),
+    lunch: summarizeMealItems(alternatives.lunch || []),
+    dinner: summarizeMealItems(alternatives.dinner || []),
+    snacks: Array.isArray(alternatives.snacks)
+      ? alternatives.snacks.map((meal) => ({
+          mealIndex: meal.mealIndex,
+          items: summarizeMealItems(meal.items || []),
+        }))
+      : [],
+  };
+};
+
+const formatMealPlanResponse = (plan) => {
+  if (!plan || typeof plan !== "object" || !plan.alternatives) return plan;
+
+  return {
+    ...plan,
+    alternativeSummary: buildAlternativeSummary(plan.alternatives),
+  };
 };
 
 const resolveMealContext = async ({
@@ -826,9 +281,7 @@ const resolveMealContext = async ({
     "goal",
   ];
   const missingStats = stats
-    ? requiredStats.filter(
-        (field) => stats[field] === null || stats[field] === undefined,
-      )
+    ? requiredStats.filter((field) => stats[field] === null || stats[field] === undefined)
     : requiredStats;
 
   const profileCalories =
@@ -847,9 +300,7 @@ const resolveMealContext = async ({
         )
       : null;
 
-  const resolvedCalories = Number(
-    targetCalories || calories || profileCalories,
-  );
+  const resolvedCalories = Number(targetCalories || calories || profileCalories);
   if (!Number.isFinite(resolvedCalories)) {
     if (stats && missingStats.length > 0 && !calories && !targetCalories) {
       throw new AppError(
@@ -857,55 +308,108 @@ const resolveMealContext = async ({
         422,
       );
     }
-    throw new AppError(
-      "Unable to resolve target calories for meal generation",
-      400,
-    );
+    throw new AppError("Unable to resolve target calories for meal generation", 400);
   }
 
   const resolvedDietType = dietType && dietType !== "any" ? dietType : "any";
-  const resolvedAllergies = mergeLists(stats?.mealAllergies, allergies);
-  const resolvedDislikes = mergeLists(stats?.mealDislikes, mealDislikes);
-  const resolvedPreferences = mergeLists(stats?.mealPreferences);
-  const macros = calculateMacros(resolvedCalories, stats?.goal || "maintain");
-
   return {
     stats,
     calories: resolvedCalories,
     dietType: resolvedDietType,
-    allergies: resolvedAllergies,
-    mealDislikes: resolvedDislikes,
-    mealPreferences: resolvedPreferences,
+    allergies: mergeLists(stats?.mealAllergies, allergies),
+    mealDislikes: mergeLists(stats?.mealDislikes, mealDislikes),
+    mealPreferences: mergeLists(stats?.mealPreferences),
     mealsCount,
-    macros,
+    macros: calculateMacros(resolvedCalories, stats?.goal || "maintain"),
   };
+};
+
+const buildMealPlanCore = async ({
+  userId,
+  mealsCount = DEFAULT_MEALS_COUNT,
+  resolvedContext,
+  includeAlternatives = true,
+}) => {
+  const context = resolvedContext || (await resolveMealContext({ userId, mealsCount }));
+  const foods = normalizeUsdaFoods(
+    await mealRepo.findFoods(context.dietType !== "any" ? { dietType: context.dietType } : {}),
+  );
+  const safeFoods = filterExcludedFoods(foods, context.allergies, context.mealDislikes).filter(isPreferableMealFood);
+  const prioritizedFoods = scoreFoodsByPreferences(safeFoods, context.mealPreferences);
+  const targets = buildMealTargets(context.calories, context.mealsCount);
+
+  const breakfast = buildMealSelection(
+    pickFoodsForTarget(
+      prioritizedFoods.filter((food) => food.category === "breakfast"),
+      targets.breakfast,
+    ).items,
+  );
+  const lunch = buildMealSelection(
+    pickFoodsForTarget(
+      prioritizedFoods.filter((food) => food.category === "lunch"),
+      targets.lunch,
+    ).items,
+  );
+  const dinner = buildMealSelection(
+    pickFoodsForTarget(
+      prioritizedFoods.filter((food) => food.category === "dinner"),
+      targets.dinner,
+    ).items,
+  );
+  const snacks = targets.snacks.map((target) =>
+    buildMealSelection(
+      pickFoodsForTarget(
+        prioritizedFoods.filter((food) => food.category === "snack"),
+        target,
+      ).items,
+    ),
+  );
+
+  const plan = {
+    nutrition: {
+      source: context.stats ? "user_profile" : "manual_override",
+      targetCalories: context.calories,
+      macros: context.macros,
+      mealsCount: context.mealsCount,
+    },
+    mealTargets: targets,
+    breakfast,
+    lunch,
+    dinner,
+    snacks,
+  };
+
+  if (!includeAlternatives) return plan;
+
+  const alternatives = await buildAlternativesForMealPlan(plan, {
+    limit: DEFAULT_ALTERNATIVE_LIMIT,
+  });
+
+  return formatMealPlanResponse({
+    ...plan,
+    alternatives,
+  });
 };
 
 const generateAndStoreMealPlan = async ({
   userId,
   mealsCount = DEFAULT_MEALS_COUNT,
 }) => {
-  const resolvedContext = await resolveMealContext({
-    userId,
-    mealsCount,
-  });
-
+  const resolvedContext = await resolveMealContext({ userId, mealsCount });
   const plan = await buildMealPlanCore({
     userId,
     mealsCount,
     resolvedContext,
-    includeAlternatives: false,
+    includeAlternatives: true,
   });
-
   return dietRepo.createPlan(userId, plan);
 };
 
-const generateMealPlan = async (params) => {
-  return buildMealPlanCore({
+const generateMealPlan = async (params) =>
+  buildMealPlanCore({
     ...params,
     includeAlternatives: true,
   });
-};
 
 const enrichStoredMealPlan = async (record, userId) => {
   if (!record) {
@@ -919,18 +423,17 @@ const enrichStoredMealPlan = async (record, userId) => {
     mealsCount: basePlan?.nutrition?.mealsCount || DEFAULT_MEALS_COUNT,
   });
 
-  const alternatives = await buildMealAlternativesForPlan({
-    plan: basePlan,
+  const alternatives = await buildAlternativesForMealPlan(basePlan, {
+    limit: DEFAULT_ALTERNATIVE_LIMIT,
     resolvedContext,
-    userId,
   });
 
   return {
     ...record,
-    plan: {
+    plan: formatMealPlanResponse({
       ...basePlan,
       alternatives,
-    },
+    }),
   };
 };
 
@@ -978,26 +481,63 @@ Avoid ingredients/foods: ${exclusions.length ? exclusions.join(", ") : "none"}.`
   }
 };
 
+const findMealItemInPlan = (plan, { mealType, itemId, itemName }) => {
+  const meals = getPlanMeals(plan);
+  const searchName = normalizeText(itemName);
+
+  const locateInSelection = (selection, label, snackIndex = null) => {
+    const items = Array.isArray(selection?.items) ? selection.items : [];
+    return items
+      .map((item, index) => ({ item, index }))
+      .filter(({ item }) => {
+        if (itemId !== undefined && itemId !== null && safeNumber(item.id) === safeNumber(itemId)) return true;
+        if (searchName && normalizeText(item.name) === searchName) return true;
+        if (searchName && normalizeText(item.name).includes(searchName)) return true;
+        return false;
+      })
+      .map(({ item, index }) => ({
+        item,
+        mealType: label,
+        snackIndex,
+        itemIndex: index,
+      }));
+  };
+
+  if (mealType === "breakfast") return locateInSelection(meals.breakfast, "breakfast");
+  if (mealType === "lunch") return locateInSelection(meals.lunch, "lunch");
+  if (mealType === "dinner") return locateInSelection(meals.dinner, "dinner");
+  if (mealType === "snack") {
+    return meals.snacks.flatMap((meal, snackIndex) =>
+      locateInSelection(meal, "snack", snackIndex),
+    );
+  }
+
+  return [
+    ...locateInSelection(meals.breakfast, "breakfast"),
+    ...locateInSelection(meals.lunch, "lunch"),
+    ...locateInSelection(meals.dinner, "dinner"),
+    ...meals.snacks.flatMap((meal, snackIndex) =>
+      locateInSelection(meal, "snack", snackIndex),
+    ),
+  ];
+};
+
 const getItemAlternatives = async ({
   userId,
   itemId,
   itemName,
   mealType,
+  targetComponent,
   limit = DEFAULT_ALTERNATIVE_LIMIT,
 }) => {
   const latest = await getLatestMealPlan(userId);
   const basePlan = latest.plan || {};
-  const resolvedContext = await resolveMealContext({
-    userId,
-    targetCalories: basePlan?.nutrition?.targetCalories,
-    mealsCount: basePlan?.nutrition?.mealsCount || DEFAULT_MEALS_COUNT,
-  });
-
+  const meals = getPlanMeals(basePlan);
   const matches = findMealItemInPlan(basePlan, { mealType, itemId, itemName });
+
   if (matches.length === 0) {
     throw new AppError("Meal item not found in the latest meal plan", 404);
   }
-
   if (matches.length > 1) {
     throw new AppError(
       "Multiple meal items matched the request. Please provide itemId or mealType to narrow it down.",
@@ -1006,39 +546,36 @@ const getItemAlternatives = async ({
   }
 
   const target = matches[0];
-  const foods = await mealRepo.findFoods();
-  const safeFoods = filterExcludedFoods(
-    foods,
-    resolvedContext.allergies,
-    resolvedContext.mealDislikes,
-  );
-  const itemContext = {
-    ...resolvedContext,
-    dietTypePreference: target.item.dietType || resolvedContext.dietType,
-  };
   const mealSelection =
     target.mealType === "breakfast"
-      ? basePlan.breakfast
+      ? meals.breakfast
       : target.mealType === "lunch"
-        ? basePlan.lunch
+        ? meals.lunch
         : target.mealType === "dinner"
-          ? basePlan.dinner
-          : basePlan.snacks[target.snackIndex];
+          ? meals.dinner
+          : meals.snacks[target.snackIndex];
 
-  return buildAlternativeBlock({
-    plan: basePlan,
-    mealSelection: {
-      ...mealSelection,
-      snackIndex: target.snackIndex,
-    },
+  const allItems = [
+    ...(meals.breakfast.items || []),
+    ...(meals.lunch.items || []),
+    ...(meals.dinner.items || []),
+    ...meals.snacks.flatMap((meal) => meal.items || []),
+  ];
+  const dayTotals = aggregateTotals(allItems);
+  const foods = normalizeUsdaFoods(await mealRepo.findFoods());
+
+  return buildItemAlternatives({
     item: target.item,
-    mealType: target.mealType,
-    itemIndex: target.itemIndex,
-    foods: safeFoods,
-    resolvedContext: itemContext,
-    alternativeLimit: limit,
+    category: target.mealType === "snack" ? "snack" : target.mealType,
+    mealTotals: mealSelection.totals || aggregateTotals(mealSelection.items || []),
+    dayTotals,
+    foods,
+    explicitTargets: normalizeList(targetComponent),
+    limit,
   });
 };
+
+const getAlternatives = getItemAlternatives;
 
 module.exports = {
   resolveMealContext,
@@ -1046,5 +583,7 @@ module.exports = {
   generateMealPlan,
   generateAIMealSuggestions,
   getItemAlternatives,
+  getAlternatives,
   getLatestMealPlan,
+  formatMealPlanResponse,
 };

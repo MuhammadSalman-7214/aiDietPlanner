@@ -145,49 +145,120 @@ const swaggerDefinition = {
         type: "object",
         properties: {
           id: { type: "integer", example: 295 },
-          name: { type: "string", example: "Bread, egg" },
-          calories: { type: "number", example: 1200 },
-          protein: { type: "number", example: 10 },
-          carbs: { type: "number", example: 48 },
-          fats: { type: "number", example: 6 },
+          name: { type: "string", example: "Tofu, firm, prepared with calcium sulfate" },
+          calories: { type: "number", example: 76 },
+          protein: { type: "number", example: 8 },
+          carbs: { type: "number", example: 2 },
+          fats: { type: "number", example: 4 },
           matchScore: { type: "number", example: 79.7 },
           macroDelta: {
             type: "object",
             properties: {
-              calories: { type: "number", example: 40 },
-              protein: { type: "number", example: -1 },
-              carbs: { type: "number", example: -5 },
-              fats: { type: "number", example: 6 },
+              calories: { type: "number", example: -14 },
+              protein: { type: "number", example: 2 },
+              carbs: { type: "number", example: 0 },
+              fats: { type: "number", example: -2 },
             },
           },
+        },
+      },
+      MealPreviewDelta: {
+        type: "object",
+        properties: {
+          calories: { type: "number", example: -14 },
+          protein: { type: "number", example: 2 },
+          carbs: { type: "number", example: 0 },
+          fats: { type: "number", example: -2 },
+        },
+      },
+      MealMacroTotals: {
+        type: "object",
+        properties: {
+          calories: { type: "number", example: 711 },
+          protein: { type: "number", example: 18 },
+          carbs: { type: "number", example: 59 },
+          fats: { type: "number", example: 45 },
+        },
+      },
+      MealAlternativePreviewImpact: {
+        type: "object",
+        properties: {
+          itemDelta: { $ref: "#/components/schemas/MealPreviewDelta" },
+          mealDelta: { $ref: "#/components/schemas/MealPreviewDelta" },
+          dayDelta: { $ref: "#/components/schemas/MealPreviewDelta" },
+        },
+      },
+      MealAlternativePreviewTotals: {
+        type: "object",
+        properties: {
+          meal: { $ref: "#/components/schemas/MealMacroTotals" },
+          day: { $ref: "#/components/schemas/MealMacroTotals" },
+        },
+      },
+      MealComponentAlternative: {
+        type: "object",
+        properties: {
+          originalItemId: { type: "integer", example: 294 },
+          originalItemName: { type: "string", example: "Bagels, egg" },
+          replaceableComponent: { type: "string", nullable: true, example: "egg" },
+          alternatives: {
+            type: "array",
+            items: ref("MealItemAlternativeChoice"),
+          },
+          recommended: {
+            allOf: [ref("MealItemAlternativeChoice")],
+            nullable: true,
+          },
+          previewImpact: { $ref: "#/components/schemas/MealAlternativePreviewImpact" },
+          previewTotals: { $ref: "#/components/schemas/MealAlternativePreviewTotals" },
+          reason: { type: "string", nullable: true, example: "no_valid_usda_match" },
         },
       },
       MealItemAlternative: {
         type: "object",
         properties: {
-          originalItemId: { type: "integer", example: 294 },
-          originalItemName: { type: "string", example: "Bagels, egg" },
-          replaceableComponent: { type: "string", example: "egg" },
+          itemId: { type: "integer", example: 294 },
+          itemName: { type: "string", example: "Bagels, egg" },
           category: { type: "string", example: "breakfast" },
-          alternatives: {
+          currentItem: { $ref: "#/components/schemas/MealFoodItem" },
+          components: {
             type: "array",
-            items: { $ref: "#/components/schemas/MealItemAlternativeChoice" },
+            items: ref("MealComponentAlternative"),
           },
-          recommended: {
-            type: "object",
-            nullable: true,
-            properties: {
-              id: { type: "integer", example: 295 },
-              name: { type: "string", example: "Bread, egg" },
-            },
-          },
-          previewTotals: {
-            type: "object",
-            properties: {
-              calories: { type: "number", example: 1180 },
-              protein: { type: "number", example: 12 },
-              carbs: { type: "number", example: 50 },
-              fats: { type: "number", example: 6 },
+        },
+      },
+      MealItemAlternativeSummary: {
+        type: "object",
+        properties: {
+          itemId: { type: "integer", example: 294 },
+          itemName: { type: "string", example: "Bagels, egg" },
+          category: { type: "string", example: "breakfast" },
+          currentItem: { $ref: "#/components/schemas/MealFoodItem" },
+          currentMacros: { $ref: "#/components/schemas/MealMacroTotals" },
+          replacementComponents: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                component: { type: "string", nullable: true, example: "egg" },
+                recommended: {
+                  allOf: [ref("MealItemAlternativeChoice")],
+                  nullable: true,
+                },
+                totalMatches: { type: "integer", example: 3 },
+                bestMatches: {
+                  type: "array",
+                  items: {
+                    allOf: [ref("MealItemAlternativeChoice")],
+                    properties: {
+                      rank: { type: "integer", example: 1 },
+                    },
+                  },
+                },
+                previewImpact: { $ref: "#/components/schemas/MealAlternativePreviewImpact" },
+                previewTotals: { $ref: "#/components/schemas/MealAlternativePreviewTotals" },
+                reason: { type: "string", nullable: true, example: null },
+              },
             },
           },
         },
@@ -253,6 +324,24 @@ const swaggerDefinition = {
               },
               generatedAt: { type: "string", format: "date-time" },
               source: { type: "string", example: "user_meal_plan" },
+            },
+          },
+          alternativeSummary: {
+            type: "object",
+            properties: {
+              breakfast: { type: "array", items: ref("MealItemAlternativeSummary") },
+              lunch: { type: "array", items: ref("MealItemAlternativeSummary") },
+              dinner: { type: "array", items: ref("MealItemAlternativeSummary") },
+              snacks: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    mealIndex: { type: "integer", example: 1 },
+                    items: { type: "array", items: ref("MealItemAlternativeSummary") },
+                  },
+                },
+              },
             },
           },
           aiSuggestions: {
@@ -861,37 +950,94 @@ const swaggerDefinition = {
                       alternatives: {
                         breakfast: [
                           {
-                            originalItemId: 294,
-                            originalItemName: "Bagels, egg",
-                            replaceableComponent: "egg",
+                            itemId: 294,
+                            itemName: "Bagels, egg",
                             category: "breakfast",
-                            alternatives: [
+                            currentItem: {
+                              id: 294,
+                              name: "Bagels, egg",
+                              calories: 90,
+                              protein: 8,
+                              carbs: 2,
+                              fats: 6,
+                              category: "breakfast",
+                              dietType: "balanced",
+                              ingredients: [],
+                              instructions: [],
+                            },
+                            components: [
                               {
-                                id: 295,
-                                name: "Bread, egg",
-                                calories: 1200,
-                                protein: 10,
-                                carbs: 48,
-                                fats: 6,
-                                matchScore: 79.7,
-                                macroDelta: {
-                                  calories: 40,
-                                  protein: -1,
-                                  carbs: -5,
-                                  fats: 6,
+                                originalItemId: 294,
+                                originalItemName: "Bagels, egg",
+                                replaceableComponent: "egg",
+                                alternatives: [
+                                  {
+                                    id: 1678,
+                                    name: "Tofu, firm, prepared with calcium sulfate",
+                                    calories: 76,
+                                    protein: 8,
+                                    carbs: 2,
+                                    fats: 4,
+                                    matchScore: 87.2,
+                                    macroDelta: {
+                                      calories: -14,
+                                      protein: 2,
+                                      carbs: 0,
+                                      fats: -2,
+                                    },
+                                  },
+                                ],
+                                recommended: {
+                                  id: 1678,
+                                  name: "Tofu, firm, prepared with calcium sulfate",
+                                  calories: 76,
+                                  protein: 8,
+                                  carbs: 2,
+                                  fats: 4,
+                                  matchScore: 87.2,
+                                  macroDelta: {
+                                    calories: -14,
+                                    protein: 2,
+                                    carbs: 0,
+                                    fats: -2,
+                                  },
+                                },
+                                previewImpact: {
+                                  itemDelta: {
+                                    calories: -14,
+                                    protein: 2,
+                                    carbs: 0,
+                                    fats: -2,
+                                  },
+                                  mealDelta: {
+                                    calories: -14,
+                                    protein: 2,
+                                    carbs: 0,
+                                    fats: -2,
+                                  },
+                                  dayDelta: {
+                                    calories: -14,
+                                    protein: 2,
+                                    carbs: 0,
+                                    fats: -2,
+                                  },
+                                },
+                                previewTotals: {
+                                  meal: {
+                                    calories: 586,
+                                    protein: 30,
+                                    carbs: 45,
+                                    fats: 18,
+                                  },
+                                  day: {
+                                    calories: 1986,
+                                    protein: 151,
+                                    carbs: 221,
+                                    fats: 65,
+                                  },
                                 },
                               },
                             ],
-                            recommended: {
-                              id: 295,
-                              name: "Bread, egg",
-                            },
-                            previewTotals: {
-                              calories: 1180,
-                              protein: 12,
-                              carbs: 50,
-                              fats: 6,
-                            },
                           },
                         ],
                         lunch: [],
@@ -899,6 +1045,110 @@ const swaggerDefinition = {
                         snacks: [],
                         generatedAt: "2026-04-03T12:00:00.000Z",
                         source: "user_meal_plan",
+                      },
+                      alternativeSummary: {
+                        breakfast: [
+                          {
+                            itemId: 294,
+                            itemName: "Bagels, egg",
+                            category: "breakfast",
+                            currentItem: {
+                              id: 294,
+                              name: "Bagels, egg",
+                              calories: 90,
+                              protein: 8,
+                              carbs: 2,
+                              fats: 6,
+                              category: "breakfast",
+                              dietType: "balanced",
+                              ingredients: [],
+                              instructions: [],
+                            },
+                            currentMacros: {
+                              calories: 90,
+                              protein: 8,
+                              carbs: 2,
+                              fats: 6,
+                            },
+                            replacementComponents: [
+                              {
+                                component: "egg",
+                                recommended: {
+                                  id: 1678,
+                                  name: "Tofu, firm, prepared with calcium sulfate",
+                                  calories: 76,
+                                  protein: 8,
+                                  carbs: 2,
+                                  fats: 4,
+                                  matchScore: 87.2,
+                                  macroDelta: {
+                                    calories: -14,
+                                    protein: 2,
+                                    carbs: 0,
+                                    fats: -2,
+                                  },
+                                },
+                                totalMatches: 3,
+                                bestMatches: [
+                                  {
+                                    rank: 1,
+                                    id: 1678,
+                                    name: "Tofu, firm, prepared with calcium sulfate",
+                                    calories: 76,
+                                    protein: 8,
+                                    carbs: 2,
+                                    fats: 4,
+                                    matchScore: 87.2,
+                                    macroDelta: {
+                                      calories: -14,
+                                      protein: 2,
+                                      carbs: 0,
+                                      fats: -2,
+                                    },
+                                  },
+                                ],
+                                previewImpact: {
+                                  itemDelta: {
+                                    calories: -14,
+                                    protein: 2,
+                                    carbs: 0,
+                                    fats: -2,
+                                  },
+                                  mealDelta: {
+                                    calories: -14,
+                                    protein: 2,
+                                    carbs: 0,
+                                    fats: -2,
+                                  },
+                                  dayDelta: {
+                                    calories: -14,
+                                    protein: 2,
+                                    carbs: 0,
+                                    fats: -2,
+                                  },
+                                },
+                                previewTotals: {
+                                  meal: {
+                                    calories: 586,
+                                    protein: 30,
+                                    carbs: 45,
+                                    fats: 18,
+                                  },
+                                  day: {
+                                    calories: 1986,
+                                    protein: 151,
+                                    carbs: 221,
+                                    fats: 65,
+                                  },
+                                },
+                                reason: null,
+                              },
+                            ],
+                          },
+                        ],
+                        lunch: [],
+                        dinner: [],
+                        snacks: [],
                       },
                     },
                   },
@@ -935,6 +1185,16 @@ const swaggerDefinition = {
                 },
                 itemId: { type: "integer", example: 11 },
                 itemName: { type: "string", example: "Egg White Omelette" },
+                targetComponent: {
+                  oneOf: [
+                    { type: "string", example: "egg" },
+                    {
+                      type: "array",
+                      items: { type: "string" },
+                      example: ["egg"],
+                    },
+                  ],
+                },
                 limit: { type: "integer", example: 4 },
               },
             }),
@@ -947,18 +1207,65 @@ const swaggerDefinition = {
                   example: {
                     success: true,
                     data: {
-                      originalItemId: 11,
-                      originalItemName: "Egg White Omelette",
-                      replaceableComponent: "egg",
+                      itemId: 11,
+                      itemName: "Egg White Omelette",
                       category: "breakfast",
-                      alternatives: [],
-                      recommended: null,
-                      previewTotals: {
-                        calories: 0,
-                        protein: 0,
-                        carbs: 0,
-                        fats: 0,
+                      currentItem: {
+                        id: 11,
+                        name: "Egg White Omelette",
+                        calories: 140,
+                        protein: 15,
+                        carbs: 3,
+                        fats: 7,
+                        category: "breakfast",
+                        dietType: "balanced",
+                        ingredients: [],
+                        instructions: [],
                       },
+                      components: [
+                        {
+                          originalItemId: 11,
+                          originalItemName: "Egg White Omelette",
+                          replaceableComponent: "egg",
+                          alternatives: [],
+                          recommended: null,
+                          previewImpact: {
+                            itemDelta: {
+                              calories: 0,
+                              protein: 0,
+                              carbs: 0,
+                              fats: 0,
+                            },
+                            mealDelta: {
+                              calories: 0,
+                              protein: 0,
+                              carbs: 0,
+                              fats: 0,
+                            },
+                            dayDelta: {
+                              calories: 0,
+                              protein: 0,
+                              carbs: 0,
+                              fats: 0,
+                            },
+                          },
+                          previewTotals: {
+                            meal: {
+                              calories: 400,
+                              protein: 26,
+                              carbs: 30,
+                              fats: 14,
+                            },
+                            day: {
+                              calories: 2015,
+                              protein: 152,
+                              carbs: 225,
+                              fats: 67,
+                            },
+                          },
+                          reason: "no_valid_usda_match",
+                        },
+                      ],
                     },
                   },
                 },
