@@ -134,6 +134,14 @@ const tryGenerateMealPlan = async (userId) => {
       planId: plan.id,
     };
   } catch (err) {
+    if (err?.code === 'ER_DATA_TOO_LONG') {
+      logger.warn({ userId, err }, 'Meal plan too large to store after stats save');
+      return {
+        generated: false,
+        reason: 'Meal plan could not be stored because the payload exceeded database limits.',
+      };
+    }
+
     if (err instanceof AppError && [404, 422].includes(err.statusCode)) {
       logger.warn({ userId, err }, 'Meal plan generation skipped after stats save');
       return {

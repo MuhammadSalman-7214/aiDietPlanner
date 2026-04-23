@@ -11,6 +11,22 @@ const ensureColumn = async (db, table, column, ddl) => {
   }
 };
 
+const ensureColumnType = async (db, table, column, ddl, typeHint) => {
+  const [rows] = await db.query(`SHOW COLUMNS FROM \`${table}\` LIKE ?`, [
+    column,
+  ]);
+  if (rows.length === 0) {
+    await db.query(`ALTER TABLE \`${table}\` ADD COLUMN ${ddl}`);
+    return;
+  }
+
+  const currentType = String(rows[0]?.Type || "").toLowerCase();
+  const wantedType = String(typeHint || "").toLowerCase();
+  if (wantedType && currentType !== wantedType) {
+    await db.query(`ALTER TABLE \`${table}\` MODIFY COLUMN ${ddl}`);
+  }
+};
+
 const ensureIndex = async (db, table, indexName, ddl) => {
   try {
     const [rows] = await db.query(
@@ -307,7 +323,7 @@ const ensureSchema = async (db) => {
     CREATE TABLE IF NOT EXISTS diet_plans (
       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
       user_id INT UNSIGNED NOT NULL,
-      plan_json TEXT NOT NULL,
+      plan_json LONGTEXT NOT NULL,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_diet_plans_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -480,6 +496,13 @@ const ensureSchema = async (db) => {
     "diet_plans",
     "idx_diet_plans_user",
     "ADD INDEX idx_diet_plans_user (user_id, created_at)",
+  );
+  await ensureColumnType(
+    db,
+    "diet_plans",
+    "plan_json",
+    "`plan_json` LONGTEXT NOT NULL",
+    "longtext",
   );
   await ensureColumn(
     db,

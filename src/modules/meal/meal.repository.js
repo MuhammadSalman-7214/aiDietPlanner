@@ -50,7 +50,11 @@ const findFoods = async (query = {}) => {
   }
 
   const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const [rows] = await db.query(`SELECT * FROM foods ${whereClause}`, values);
+  const [rows] = await db.query(
+    `SELECT * FROM foods ${whereClause}
+     ORDER BY COALESCE(confidence, 0) DESC, COALESCE(normalized_name, name) ASC, id ASC`,
+    values,
+  );
   return rows.map(mapFoodRow);
 };
 

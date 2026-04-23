@@ -17,17 +17,27 @@ const {
 } = require("./food.usda.service");
 
 const zeroTotals = () => ({ calories: 0, protein: 0, carbs: 0, fats: 0 });
+const preciseRound = (value) => Math.round((Number(value) || 0) * 10000) / 10000;
 
 const aggregateTotals = (items = []) =>
-  items.reduce(
-    (acc, item) => ({
-      calories: roundValue(acc.calories + safeNumber(item.calories)),
-      protein: roundValue(acc.protein + safeNumber(item.protein)),
-      carbs: roundValue(acc.carbs + safeNumber(item.carbs)),
-      fats: roundValue(acc.fats + safeNumber(item.fats)),
-    }),
-    zeroTotals(),
+  roundSelectionTotals(
+    items.reduce(
+      (acc, item) => ({
+        calories: acc.calories + safeNumber(item.calories),
+        protein: acc.protein + safeNumber(item.protein),
+        carbs: acc.carbs + safeNumber(item.carbs),
+        fats: acc.fats + safeNumber(item.fats),
+      }),
+      zeroTotals(),
+    ),
   );
+
+const roundSelectionTotals = (totals = {}) => ({
+  calories: roundValue(totals.calories),
+  protein: roundValue(totals.protein),
+  carbs: roundValue(totals.carbs),
+  fats: roundValue(totals.fats),
+});
 
 const normalizeFood = (food) => {
   const normalizedFood = normalizeUsdaFood(food);
@@ -116,6 +126,14 @@ const calculateMacroSimilarity = (original, candidate) => {
   );
 };
 
+const calculateMacroDeviation = (original, candidate) =>
+  Math.max(
+    percentDiff(original.calories, candidate.calories),
+    percentDiff(original.protein, candidate.protein),
+    percentDiff(original.carbs, candidate.carbs),
+    percentDiff(original.fats, candidate.fats),
+  );
+
 const getSharedComponentMatch = (component, candidate) => {
   const componentVariants = getComponentVariants(component).map((variant) => normalize(variant)).filter(Boolean);
   const haystack = normalize([candidate.name, ...(candidate.componentTags || [])].join(" "));
@@ -155,6 +173,22 @@ const calculateScore = ({ original, alt, component, category, ignoreNameSimilari
   );
 };
 
+const calculateWholeItemScore = ({ original, alt, category }) => {
+  const macroSimilarity = calculateMacroSimilarity(original, alt);
+  const categoryMatch = getCategoryMatch(category, alt);
+  const nameSimilarity = calculateNameSimilarity(original, alt);
+  const roleMatch = getRoleMatch(null, alt);
+  const confidenceBonus = Math.max(0, Math.min(1, Number(alt.confidence) || 0));
+
+  return roundValue(
+    (macroSimilarity * 0.6) +
+    (roleMatch * 0.15) +
+    (categoryMatch * 0.15) +
+    (nameSimilarity * 0.05) +
+    (confidenceBonus * 0.05),
+  );
+};
+
 const isWithinStrictMacroTolerance = (original, candidate, tolerance = 0.25) => (
   percentDiff(original.calories, candidate.calories) <= tolerance &&
   percentDiff(original.protein, candidate.protein) <= tolerance &&
@@ -167,11 +201,11 @@ const scaleReplacementPortion = (original, replacement) => {
   const scaleFactor = safeNumber(original.calories) / replacementCalories;
 
   return {
-    calories: roundValue(safeNumber(replacement.calories) * scaleFactor),
-    protein: roundValue(safeNumber(replacement.protein) * scaleFactor),
-    carbs: roundValue(safeNumber(replacement.carbs) * scaleFactor),
-    fats: roundValue(safeNumber(replacement.fats) * scaleFactor),
-    scaleFactor: roundValue(scaleFactor),
+    calories: preciseRound(safeNumber(replacement.calories) * scaleFactor),
+    protein: preciseRound(safeNumber(replacement.protein) * scaleFactor),
+    carbs: preciseRound(safeNumber(replacement.carbs) * scaleFactor),
+    fats: preciseRound(safeNumber(replacement.fats) * scaleFactor),
+    scaleFactor: preciseRound(scaleFactor),
   };
 };
 
@@ -191,10 +225,10 @@ const calculateAdjustedItem = (originalItem, componentSource, alternative) => {
   );
 
   return {
-    calories: roundValue(safeNumber(originalItem.calories) - sourceCalories + scaled.calories),
-    protein: roundValue(safeNumber(originalItem.protein) - sourceProtein + scaled.protein),
-    carbs: roundValue(safeNumber(originalItem.carbs) - sourceCarbs + scaled.carbs),
-    fats: roundValue(safeNumber(originalItem.fats) - sourceFats + scaled.fats),
+    calories: preciseRound(safeNumber(originalItem.calories) - sourceCalories + scaled.calories),
+    protein: preciseRound(safeNumber(originalItem.protein) - sourceProtein + scaled.protein),
+    carbs: preciseRound(safeNumber(originalItem.carbs) - sourceCarbs + scaled.carbs),
+    fats: preciseRound(safeNumber(originalItem.fats) - sourceFats + scaled.fats),
     scaledReplacement: scaled,
   };
 };
@@ -379,6 +413,42 @@ const getValidAlternatives = (candidates, component, originalItem, category = or
   });
 };
 
+const rankWholeItemAlternatives = ({
+  candidates = [],
+  originalItem,
+  category,
+  tolerance = 0.3,
+}) => {
+  const validCandidates = candidates.filter((candidate) => isMealSafeFood(candidate));
+  const categoryCandidates = validCandidates.filter((candidate) => getCategoryMatch(category, candidate));
+  const pools = categoryCandidates.length > 0 ? [categoryCandidates, validCandidates] : [validCandidates];
+
+  for (const pool of pools) {
+    const ranked = pool
+      .filter((candidate) => isWithinStrictMacroTolerance(originalItem, candidate, tolerance))
+      .map((candidate) => ({
+        ...candidate,
+        matchScore: calculateWholeItemScore({
+          original: originalItem,
+          alt: candidate,
+          category,
+        }),
+        usedFallback: pool !== categoryCandidates,
+        macroDeviation: calculateMacroDeviation(originalItem, candidate),
+      }))
+      .sort((a, b) => {
+        if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+        if (a.macroDeviation !== b.macroDeviation) return a.macroDeviation - b.macroDeviation;
+        if (a.calories !== b.calories) return Math.abs(a.calories - originalItem.calories) - Math.abs(b.calories - originalItem.calories);
+        return safeNumber(a.id) - safeNumber(b.id);
+      });
+
+    if (ranked.length > 0) return ranked;
+  }
+
+  return [];
+};
+
 const findComponentReferenceFood = ({ component, foods = [], originalItem }) => {
   const sameComponentFoods = foods.filter((food) =>
     getComponentVariants(component).some((variant) =>
@@ -477,6 +547,70 @@ const buildComponentAlternativeBlock = ({
   };
 };
 
+const buildWholeItemAlternativeBlock = ({
+  originalItem,
+  alternatives,
+  mealTotals,
+  dayTotals,
+}) => {
+  if (!alternatives.length) {
+    return {
+      originalItemId: originalItem.id,
+      originalItemName: originalItem.name,
+      replaceableComponent: null,
+      alternatives: [],
+      recommended: null,
+      previewImpact: zeroTotals(),
+      previewTotals: {
+        calories: safeNumber(mealTotals.calories),
+        protein: safeNumber(mealTotals.protein),
+        carbs: safeNumber(mealTotals.carbs),
+        fats: safeNumber(mealTotals.fats),
+        meal: mealTotals,
+        day: dayTotals,
+      },
+      reason: "no_valid_match_after_fallback",
+    };
+  }
+
+  const summarizedAlternatives = alternatives.map((alternative) =>
+    summarizeChoice(alternative, originalItem, { usedFallback: alternative.usedFallback }),
+  );
+  const recommended = summarizedAlternatives[0];
+  const adjustedItem = calculateAdjustedItem(originalItem, null, recommended);
+  const nestedPreviewTotals = calculatePreviewTotals({
+    mealTotals,
+    dayTotals,
+    originalItem,
+    adjustedItem,
+  });
+
+  return {
+    originalItemId: originalItem.id,
+    originalItemName: originalItem.name,
+    replaceableComponent: null,
+    alternatives: summarizedAlternatives.slice(0, 5),
+    recommended,
+    previewImpact: {
+      calories: roundValue(safeNumber(adjustedItem.calories) - safeNumber(originalItem.calories)),
+      protein: roundValue(safeNumber(adjustedItem.protein) - safeNumber(originalItem.protein)),
+      carbs: roundValue(safeNumber(adjustedItem.carbs) - safeNumber(originalItem.carbs)),
+      fats: roundValue(safeNumber(adjustedItem.fats) - safeNumber(originalItem.fats)),
+    },
+    previewTotals: {
+      calories: safeNumber(nestedPreviewTotals.meal.calories),
+      protein: safeNumber(nestedPreviewTotals.meal.protein),
+      carbs: safeNumber(nestedPreviewTotals.meal.carbs),
+      fats: safeNumber(nestedPreviewTotals.meal.fats),
+      meal: nestedPreviewTotals.meal,
+      day: nestedPreviewTotals.day,
+    },
+    isSafeSwap: recommended.isSafeSwap,
+    confidence: recommended.confidence,
+    reason: null,
+  };
+};
+
 const buildItemAlternatives = async ({
   item,
   category,
@@ -489,6 +623,12 @@ const buildItemAlternatives = async ({
   const normalizedItem = normalizeFood(item);
   const extractedComponents = extractComponents(normalizedItem.name);
   const replaceableComponents = selectReplaceableComponents(extractedComponents, explicitTargets);
+  const wholeItemAlternatives = rankWholeItemAlternatives({
+    candidates: foods,
+    originalItem: normalizedItem,
+    category,
+    tolerance: 0.3,
+  }).slice(0, limit);
 
   const componentBlocks = replaceableComponents.map((component) => {
     const candidates = getCandidates({
@@ -514,39 +654,69 @@ const buildItemAlternatives = async ({
     });
   });
 
+  const itemAlternativeBlock =
+    wholeItemAlternatives.length > 0
+      ? buildWholeItemAlternativeBlock({
+          originalItem: normalizedItem,
+          alternatives: wholeItemAlternatives,
+          mealTotals,
+          dayTotals,
+        })
+      : {
+          originalItemId: normalizedItem.id,
+          originalItemName: normalizedItem.name,
+          replaceableComponent: null,
+          alternatives: [],
+          recommended: null,
+          previewImpact: zeroTotals(),
+          previewTotals: {
+            calories: safeNumber(mealTotals.calories),
+            protein: safeNumber(mealTotals.protein),
+            carbs: safeNumber(mealTotals.carbs),
+            fats: safeNumber(mealTotals.fats),
+            meal: mealTotals,
+            day: dayTotals,
+          },
+          reason: "no_valid_match_after_fallback",
+        };
+
   return {
     itemId: normalizedItem.id,
     itemName: normalizedItem.name,
     category,
     currentItem: normalizedItem,
+    itemAlternatives: wholeItemAlternatives.slice(0, 5),
+    itemAlternativeBlock,
     components: componentBlocks.length > 0
       ? componentBlocks
-      : [
-          {
-            originalItemId: normalizedItem.id,
-            originalItemName: normalizedItem.name,
-            replaceableComponent: null,
-            alternatives: [],
-            recommended: null,
-            previewImpact: zeroTotals(),
-            previewTotals: {
-              calories: safeNumber(mealTotals.calories),
-              protein: safeNumber(mealTotals.protein),
-              carbs: safeNumber(mealTotals.carbs),
-              fats: safeNumber(mealTotals.fats),
-              meal: mealTotals,
-              day: dayTotals,
-            },
-            reason: "no_valid_match_after_fallback",
-            isSafeSwap: false,
-            confidence: "low",
-          },
-        ],
+      : [itemAlternativeBlock],
   };
 };
 
 const buildAlternativesForMealPlan = async (plan, { limit = 5 } = {}) => {
-  const foods = normalizeUsdaFoods(await mealRepo.findFoods()).map((food) => normalizeForMatch(food));
+  const foods = normalizeUsdaFoods(await mealRepo.findFoods())
+    .map((food) => normalizeForMatch(food))
+    .sort((left, right) => {
+      const leftConfidence = Number(left.confidence) || 0;
+      const rightConfidence = Number(right.confidence) || 0;
+      if (rightConfidence !== leftConfidence) return rightConfidence - leftConfidence;
+      if (left.normalizationSource !== right.normalizationSource) {
+        const sourceRank = {
+          real_usda_weight: 3,
+          unit_converted: 2,
+          assumed_100g: 1,
+          name_inferred: 0,
+          missing_weight: -1,
+        };
+        return (sourceRank[right.normalizationSource] || 0) - (sourceRank[left.normalizationSource] || 0);
+      }
+      const nameCompare = String(left.name || "").localeCompare(String(right.name || ""), "en", {
+        sensitivity: "base",
+        numeric: true,
+      });
+      if (nameCompare !== 0) return nameCompare;
+      return safeNumber(left.id) - safeNumber(right.id);
+    });
 
   const breakfastItems = Array.isArray(plan?.breakfast?.items) ? plan.breakfast.items : [];
   const lunchItems = Array.isArray(plan?.lunch?.items) ? plan.lunch.items : [];
@@ -591,5 +761,6 @@ module.exports = {
   getCandidates,
   getValidAlternatives,
   matchReplacement,
+  rankWholeItemAlternatives,
   scaleReplacementPortion,
 };

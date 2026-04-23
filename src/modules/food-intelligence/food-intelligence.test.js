@@ -118,3 +118,36 @@ test("Component engine extracts replaceable egg component", () => {
   const components = extractComponents("Bagels, egg");
   assert.equal(components.includes("egg"), true);
 });
+
+test("Items without replaceable components still get whole-item alternatives", async () => {
+  const result = await buildItemAlternatives({
+    item: normalizeUsdaFood({
+      id: 31,
+      name: "Simple Breakfast Bowl",
+      calories: 300,
+      protein: 20,
+      carbs: 30,
+      fats: 10,
+      weightGrams: 100,
+      category: "breakfast",
+      dietType: "balanced",
+    }),
+    category: "breakfast",
+    mealTotals: { calories: 300, protein: 20, carbs: 30, fats: 10 },
+    dayTotals: { calories: 900, protein: 60, carbs: 90, fats: 30 },
+    foods: [
+      { id: 32, name: "Balanced Breakfast A", calories: 305, protein: 21, carbs: 31, fats: 9, weightGrams: 100, category: "breakfast", dietType: "balanced" },
+      { id: 33, name: "Balanced Breakfast B", calories: 295, protein: 19, carbs: 29, fats: 11, weightGrams: 100, category: "breakfast", dietType: "balanced" },
+      { id: 34, name: "Off Macro Breakfast", calories: 500, protein: 5, carbs: 80, fats: 10, weightGrams: 100, category: "breakfast", dietType: "balanced" },
+    ],
+    limit: 3,
+  });
+
+  assert.equal(Array.isArray(result.itemAlternatives), true);
+  assert.equal(result.itemAlternatives.length > 0, true);
+  assert.equal(result.components.length, 1);
+  assert.equal(result.components[0].replaceableComponent, null);
+  assert.equal(result.components[0].alternatives.length > 0, true);
+  assert.equal(result.components[0].alternatives[0].name.includes("Balanced Breakfast"), true);
+  assert.equal(result.components[0].alternatives.some((candidate) => /Off Macro/.test(candidate.name)), false);
+});

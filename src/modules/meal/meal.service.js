@@ -27,6 +27,7 @@ const {
 
 const DEFAULT_MEALS_COUNT = 3;
 const DEFAULT_ALTERNATIVE_LIMIT = 5;
+const MEAL_PLAN_VERSION = 2;
 
 const normalizeList = (value) => {
   if (!value) return [];
@@ -64,6 +65,30 @@ const getFoodConfidence = (food) => {
   const confidence = Number(food?.confidence);
   return Number.isFinite(confidence) ? confidence : 0.5;
 };
+
+const preciseRound = (value) => Math.round((Number(value) || 0) * 10000) / 10000;
+
+const compareStrings = (left, right) =>
+  String(left ?? "").localeCompare(String(right ?? ""), "en", {
+    sensitivity: "base",
+    numeric: true,
+  });
+
+const compareFoodsForSelection = (left, right) => {
+  const confidenceDiff = getFoodConfidence(right) - getFoodConfidence(left);
+  if (confidenceDiff !== 0) return confidenceDiff;
+
+  const leftStatus = left?.nutritionStatus === "valid" ? 2 : left?.nutritionStatus === "valid_assumed_100g" ? 1 : 0;
+  const rightStatus = right?.nutritionStatus === "valid" ? 2 : right?.nutritionStatus === "valid_assumed_100g" ? 1 : 0;
+  if (rightStatus !== leftStatus) return rightStatus - leftStatus;
+
+  const nameDiff = compareStrings(normalizeText(left?.name), normalizeText(right?.name));
+  if (nameDiff !== 0) return nameDiff;
+
+  return safeNumber(left?.id) - safeNumber(right?.id);
+};
+
+const sortFoodsForSelection = (foods = []) => [...foods].sort(compareFoodsForSelection);
 
 const getMacroCalories = (totals = {}) => {
   const calories = safeNumber(totals.calories);
@@ -128,16 +153,39 @@ const scoreMealCombination = ({ items = [], targetCalories, preferences = [] }) 
   const duplicatePenalty = hasDuplicateComponentTags(items) ? 1 : 0;
   const sizePenalty = Math.max(0, items.length - 3) * 0.2;
 
-  return (
-    100 -
-    (calorieDeviation * 60) -
-    (macroCenterPenalty * 20) -
-    (duplicatePenalty * 35) +
-    (roleBonus * 8) +
-    (preferenceBonus * 2) -
-    sizePenalty +
-    (confidenceBonus * 3)
-  );
+  return {
+    total:
+      100 -
+      (calorieDeviation * 60) -
+      (macroCenterPenalty * 20) -
+      (duplicatePenalty * 35) +
+      (roleBonus * 8) +
+      (preferenceBonus * 2) -
+      sizePenalty +
+      (confidenceBonus * 3),
+    calorieDeviation,
+    macroCenterPenalty,
+    duplicatePenalty,
+    roleBonus,
+    preferenceBonus,
+    confidenceBonus,
+    label: items
+      .map((item) => `${normalizeText(item.name)}:${safeNumber(item.id)}`)
+      .sort()
+      .join("|"),
+  };
+};
+
+const isBetterMealCombination = (candidate, best) => {
+  if (!best) return true;
+  if (candidate.total !== best.total) return candidate.total > best.total;
+  if (candidate.calorieDeviation !== best.calorieDeviation) return candidate.calorieDeviation < best.calorieDeviation;
+  if (candidate.macroCenterPenalty !== best.macroCenterPenalty) return candidate.macroCenterPenalty < best.macroCenterPenalty;
+  if (candidate.duplicatePenalty !== best.duplicatePenalty) return candidate.duplicatePenalty < best.duplicatePenalty;
+  if (candidate.roleBonus !== best.roleBonus) return candidate.roleBonus > best.roleBonus;
+  if (candidate.preferenceBonus !== best.preferenceBonus) return candidate.preferenceBonus > best.preferenceBonus;
+  if (candidate.confidenceBonus !== best.confidenceBonus) return candidate.confidenceBonus > best.confidenceBonus;
+  return compareStrings(candidate.label, best.label) < 0;
 };
 
 const isMealSelectionValid = (items, targetCalories) => {
@@ -165,7 +213,7 @@ const uniqueFoods = (items = []) => {
 };
 
 const getMealCandidatePools = (foods = [], mealCategory, preferences = []) => {
-  const categoryFoods = foods.filter((food) => food.category === mealCategory);
+  const categoryFoods = sortFoodsForSelection(foods.filter((food) => food.category === mealCategory));
   const rankedFoods = scoreFoodsByPreferences(categoryFoods, preferences);
 
   return {
@@ -220,23 +268,30 @@ const selectBalancedMealItems = ({ foods = [], mealCategory, targetCalories, pre
   };
 
   const attempts = [pools, fallbackPools];
-  let best = { items: [], score: -Infinity };
+  let best = null;
+  let bestValid = null;
 
   for (const attemptPools of attempts) {
     const combos = buildMealComboCandidates(attemptPools);
     for (const items of combos) {
       if (hasDuplicateComponentTags(items)) continue;
       const score = scoreMealCombination({ items, targetCalories, preferences });
-      if (score > best.score) {
+      if (isBetterMealCombination(score, best?.score)) {
         best = { items, score };
       }
       if (isMealSelectionValid(items, targetCalories)) {
-        return scaleMealSelectionToTarget(buildMealSelection(items), targetCalories);
+        if (isBetterMealCombination(score, bestValid?.score)) {
+          bestValid = { items, score };
+        }
       }
     }
   }
 
-  const bestItems = best.items.length > 0 ? best.items : pickTopFoods(pools.all, 3);
+  if (bestValid?.items.length > 0) {
+    return scaleMealSelectionToTarget(buildMealSelection(bestValid.items), targetCalories);
+  }
+
+  const bestItems = best?.items.length > 0 ? best.items : pickTopFoods(sortFoodsForSelection(pools.all), 3);
   return scaleMealSelectionToTarget(buildMealSelection(uniqueFoods(bestItems)), targetCalories);
 };
 
@@ -315,7 +370,7 @@ const isPreferableMealFood = (food) => isMealSafeFood(food);
 
 const scoreFoodsByPreferences = (foods, preferences = []) => {
   const normalizedPreferences = mergeLists(preferences);
-  if (normalizedPreferences.length === 0) return foods;
+  if (normalizedPreferences.length === 0) return sortFoodsForSelection(foods);
 
   return foods
     .map((food) => {
@@ -334,7 +389,10 @@ const scoreFoodsByPreferences = (foods, preferences = []) => {
 
       return { food, preferenceHits };
     })
-    .sort((a, b) => b.preferenceHits - a.preferenceHits)
+    .sort((a, b) => {
+      if (b.preferenceHits !== a.preferenceHits) return b.preferenceHits - a.preferenceHits;
+      return compareFoodsForSelection(a.food, b.food);
+    })
     .map((entry) => entry.food);
 };
 
@@ -365,13 +423,13 @@ const scaleMealSelectionToTarget = (selection = {}, targetCalories = 0) => {
   const scaleFactor = target / currentCalories;
   const scaledItems = items.map((item) => ({
     ...item,
-    calories: roundValue(safeNumber(item.calories) * scaleFactor),
-    protein: roundValue(safeNumber(item.protein) * scaleFactor),
-    carbs: roundValue(safeNumber(item.carbs) * scaleFactor),
-    fats: roundValue(safeNumber(item.fats) * scaleFactor),
+    calories: preciseRound(safeNumber(item.calories) * scaleFactor),
+    protein: preciseRound(safeNumber(item.protein) * scaleFactor),
+    carbs: preciseRound(safeNumber(item.carbs) * scaleFactor),
+    fats: preciseRound(safeNumber(item.fats) * scaleFactor),
     weightGrams: item.weightGrams === null || item.weightGrams === undefined
       ? item.weightGrams
-      : roundValue(safeNumber(item.weightGrams) * scaleFactor),
+      : preciseRound(safeNumber(item.weightGrams) * scaleFactor),
   }));
 
   return {
@@ -701,7 +759,7 @@ const buildAlternativeSummary = (alternatives = {}) => {
       itemName: itemEntry.itemName,
       category: itemEntry.category,
       currentItem: itemEntry.currentItem,
-      currentMacros: itemEntry.currentItem
+        currentMacros: itemEntry.currentItem
         ? {
             calories: safeNumber(itemEntry.currentItem.calories),
             protein: safeNumber(itemEntry.currentItem.protein),
@@ -709,6 +767,13 @@ const buildAlternativeSummary = (alternatives = {}) => {
             fats: safeNumber(itemEntry.currentItem.fats),
           }
         : null,
+      itemAlternatives: Array.isArray(itemEntry.itemAlternatives)
+        ? itemEntry.itemAlternatives.slice(0, 3).map((alternative, index) => ({
+            rank: index + 1,
+            ...alternative,
+          }))
+        : [],
+      itemAlternativeBlock: itemEntry.itemAlternativeBlock || null,
       replacementComponents: itemEntry.components.map((componentBlock) => ({
         component: componentBlock.replaceableComponent,
         recommended: componentBlock.recommended,
@@ -830,8 +895,11 @@ const buildMealPlanCore = async ({
   const foods = normalizeUsdaFoods(
     await mealRepo.findFoods(context.dietType !== "any" ? { dietType: context.dietType } : {}),
   );
+  const sortedFoods = sortFoodsForSelection(foods);
   const targets = buildMealTargets(context.calories, context.mealsCount);
-  const safeFoods = filterExcludedFoods(foods, context.allergies, context.mealDislikes).filter(isPreferableMealFood);
+  const safeFoods = sortFoodsForSelection(
+    filterExcludedFoods(sortedFoods, context.allergies, context.mealDislikes).filter(isPreferableMealFood),
+  );
   const breakfast = selectBalancedMealItems({
     foods: safeFoods,
     mealCategory: "breakfast",
@@ -861,6 +929,7 @@ const buildMealPlanCore = async ({
 
   const plan = {
     nutrition: {
+      plannerVersion: MEAL_PLAN_VERSION,
       source: context.stats ? "user_profile" : "manual_override",
       targetCalories: context.calories,
       macros: context.macros,
@@ -889,10 +958,10 @@ const buildMealPlanCore = async ({
   });
 
   if ((!mealsBalanced || dayCalorieDeviation > 0.1) && safeFoods.length > 0) {
-    const fallbackFoods = safeFoods.map((food) => ({
+    const fallbackFoods = sortFoodsForSelection(safeFoods.map((food) => ({
       ...food,
       foodRole: food.foodRole || classifyFoodRole(food),
-    }));
+    })));
 
     const rebuiltBreakfast = selectBalancedMealItems({
       foods: fallbackFoods,
@@ -970,6 +1039,14 @@ const enrichStoredMealPlan = async (record, userId) => {
   }
 
   const basePlan = record.plan || {};
+  const plannerVersion = basePlan?.nutrition?.plannerVersion || 0;
+  if (plannerVersion < MEAL_PLAN_VERSION) {
+    return generateAndStoreMealPlan({
+      userId,
+      mealsCount: basePlan?.nutrition?.mealsCount || DEFAULT_MEALS_COUNT,
+    });
+  }
+
   const resolvedContext = await resolveMealContext({
     userId,
     targetCalories: basePlan?.nutrition?.targetCalories,
@@ -1115,7 +1192,7 @@ const getItemAlternatives = async ({
     ...meals.snacks.flatMap((meal) => meal.items || []),
   ];
   const dayTotals = aggregateTotals(allItems);
-  const foods = normalizeUsdaFoods(await mealRepo.findFoods());
+  const foods = sortFoodsForSelection(normalizeUsdaFoods(await mealRepo.findFoods()).map((food) => normalizeForMatch(food)));
 
   return buildItemAlternatives({
     item: target.item,
@@ -1140,4 +1217,6 @@ module.exports = {
   getLatestMealPlan,
   formatMealPlanResponse,
   formatEssentialMealPlanResponse,
+  selectBalancedMealItems,
+  sortFoodsForSelection,
 };
