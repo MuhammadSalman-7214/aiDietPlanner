@@ -29,6 +29,16 @@ const {
 const DEFAULT_MEALS_COUNT = 3;
 const DEFAULT_ALTERNATIVE_LIMIT = 5;
 const MEAL_PLAN_VERSION = 2;
+const DEFAULT_MEAL_TIME_WINDOWS = {
+  breakfast: { start: "07:00", end: "09:00" },
+  lunch: { start: "12:00", end: "14:00" },
+  dinner: { start: "18:00", end: "20:00" },
+  snacks: [
+    { start: "10:00", end: "11:00" },
+    { start: "15:00", end: "16:00" },
+    { start: "21:00", end: "22:00" },
+  ],
+};
 
 const normalizeList = (value) => {
   if (!value) return [];
@@ -486,6 +496,103 @@ const getMealDisplayName = (mealType, index = null) => {
   return "Meal";
 };
 
+const normalizeMealTimeWindow = (mealType, timeWindow, index = null) => {
+  const defaults = mealType === "snack"
+    ? DEFAULT_MEAL_TIME_WINDOWS.snacks[index] || DEFAULT_MEAL_TIME_WINDOWS.snacks[DEFAULT_MEAL_TIME_WINDOWS.snacks.length - 1]
+    : DEFAULT_MEAL_TIME_WINDOWS[mealType] || { start: "00:00", end: "00:00" };
+
+  const start = typeof timeWindow?.start === "string" && timeWindow.start.trim()
+    ? timeWindow.start.trim()
+    : defaults.start;
+  const end = typeof timeWindow?.end === "string" && timeWindow.end.trim()
+    ? timeWindow.end.trim()
+    : defaults.end;
+
+  return {
+    meal: getMealDisplayName(mealType, index),
+    start,
+    end,
+    timezone: "UTC",
+    editable: true,
+  };
+};
+
+const applyMealTimeWindows = (plan = {}, mealTimeWindows = {}) => {
+  const nextPlan = { ...plan };
+  const breakfastTimeWindow = normalizeMealTimeWindow("breakfast", mealTimeWindows.breakfast);
+  const lunchTimeWindow = normalizeMealTimeWindow("lunch", mealTimeWindows.lunch);
+  const dinnerTimeWindow = normalizeMealTimeWindow("dinner", mealTimeWindows.dinner);
+
+  nextPlan.mealTimeWindows = {
+    breakfast: breakfastTimeWindow,
+    lunch: lunchTimeWindow,
+    dinner: dinnerTimeWindow,
+    snacks: Array.isArray(mealTimeWindows.snacks)
+      ? mealTimeWindows.snacks.map((window, index) => normalizeMealTimeWindow("snack", window, index))
+      : DEFAULT_MEAL_TIME_WINDOWS.snacks.map((window, index) => normalizeMealTimeWindow("snack", window, index)),
+  };
+
+  if (nextPlan.breakfast) nextPlan.breakfast = { ...nextPlan.breakfast, timeWindow: breakfastTimeWindow };
+  if (nextPlan.lunch) nextPlan.lunch = { ...nextPlan.lunch, timeWindow: lunchTimeWindow };
+  if (nextPlan.dinner) nextPlan.dinner = { ...nextPlan.dinner, timeWindow: dinnerTimeWindow };
+
+  if (Array.isArray(nextPlan.snacks)) {
+    nextPlan.snacks = nextPlan.snacks.map((snack, index) => {
+      const snackWindow = Array.isArray(mealTimeWindows.snacks)
+        ? mealTimeWindows.snacks.find((entry) => Number(entry?.mealIndex) === index + 1)
+        : null;
+      return {
+        ...snack,
+        mealIndex: Number(snack?.mealIndex) || index + 1,
+        timeWindow: normalizeMealTimeWindow("snack", snackWindow, index),
+      };
+    });
+  }
+
+  return nextPlan;
+};
+
+const getDefaultMealTimeWindows = () => ({
+  breakfast: normalizeMealTimeWindow("breakfast"),
+  lunch: normalizeMealTimeWindow("lunch"),
+  dinner: normalizeMealTimeWindow("dinner"),
+  snacks: DEFAULT_MEAL_TIME_WINDOWS.snacks.map((window, index) => normalizeMealTimeWindow("snack", window, index)),
+});
+
+const mergeMealTimeWindows = (plan = {}, mealTimeWindows = {}) => {
+  const merged = { ...plan };
+  if (mealTimeWindows.breakfast && merged.breakfast) {
+    merged.breakfast = {
+      ...merged.breakfast,
+      timeWindow: normalizeMealTimeWindow("breakfast", mealTimeWindows.breakfast),
+    };
+  }
+  if (mealTimeWindows.lunch && merged.lunch) {
+    merged.lunch = {
+      ...merged.lunch,
+      timeWindow: normalizeMealTimeWindow("lunch", mealTimeWindows.lunch),
+    };
+  }
+  if (mealTimeWindows.dinner && merged.dinner) {
+    merged.dinner = {
+      ...merged.dinner,
+      timeWindow: normalizeMealTimeWindow("dinner", mealTimeWindows.dinner),
+    };
+  }
+  if (Array.isArray(mealTimeWindows.snacks) && Array.isArray(merged.snacks)) {
+    merged.snacks = merged.snacks.map((snack, index) => {
+      const snackWindow = mealTimeWindows.snacks.find((entry) => Number(entry?.mealIndex) === index + 1);
+      return snackWindow
+        ? {
+            ...snack,
+            timeWindow: normalizeMealTimeWindow("snack", snackWindow, index),
+          }
+        : snack;
+    });
+  }
+  return merged;
+};
+
 const getTargetForMeal = (targets, mealType, snackIndex = null) => {
   if (mealType === "breakfast") return safeNumber(targets?.breakfast);
   if (mealType === "lunch") return safeNumber(targets?.lunch);
@@ -696,6 +803,9 @@ const formatEssentialMealPlanResponse = (plan) => {
 
     const targetCalories = getTargetForMeal(mealTargets, mealType, snackIndex);
     const actualCalories = safeNumber(getMealTotalsFromSelection(selection).calories);
+    const timeWindow = selection?.timeWindow
+      ? normalizeMealTimeWindow(mealType, selection.timeWindow, snackIndex)
+      : normalizeMealTimeWindow(mealType, null, snackIndex);
     meals.push({
       mealName: label,
       targetCalories: roundCalories(targetCalories),
@@ -703,6 +813,7 @@ const formatEssentialMealPlanResponse = (plan) => {
       calorieGapPercent: calculateGapPercent(targetCalories, actualCalories),
       items: getMealItemRows(items),
       subtotal: getMealTotalsFromSelection(selection),
+      timeWindow,
     });
   };
 
@@ -948,7 +1059,7 @@ const buildMealPlanCore = async ({
     }),
   );
 
-  const plan = {
+  const plan = applyMealTimeWindows({
     nutrition: {
       plannerVersion: MEAL_PLAN_VERSION,
       source: context.stats ? "user_profile" : "manual_override",
@@ -966,7 +1077,7 @@ const buildMealPlanCore = async ({
     lunch,
     dinner,
     snacks,
-  };
+  }, getDefaultMealTimeWindows());
 
   const mealBlocks = [breakfast, lunch, dinner, ...snacks];
   const allItems = mealBlocks.flatMap((meal) => meal.items || []);
@@ -1090,6 +1201,29 @@ const enrichStoredMealPlan = async (record, userId) => {
 const getLatestMealPlan = async (userId) => {
   const plan = await dietRepo.findLatestPlan(userId);
   return enrichStoredMealPlan(plan, userId);
+};
+
+const updateMealTimeWindows = async (userId, mealTimeWindows = {}) => {
+  const latest = await dietRepo.findLatestPlan(userId);
+  if (!latest) {
+    throw new AppError("Meal plan not found", 404);
+  }
+
+  const basePlan = latest.plan || {};
+  const updatedPlan = mergeMealTimeWindows(basePlan, mealTimeWindows);
+  updatedPlan.mealTimeWindows = {
+    ...(basePlan.mealTimeWindows || {}),
+    ...(mealTimeWindows.breakfast ? { breakfast: normalizeMealTimeWindow("breakfast", mealTimeWindows.breakfast) } : {}),
+    ...(mealTimeWindows.lunch ? { lunch: normalizeMealTimeWindow("lunch", mealTimeWindows.lunch) } : {}),
+    ...(mealTimeWindows.dinner ? { dinner: normalizeMealTimeWindow("dinner", mealTimeWindows.dinner) } : {}),
+  };
+  if (Array.isArray(mealTimeWindows.snacks)) {
+    updatedPlan.mealTimeWindows.snacks = mealTimeWindows.snacks.map((entry, index) =>
+      normalizeMealTimeWindow("snack", entry, index));
+  }
+
+  await dietRepo.createPlan(userId, updatedPlan);
+  return getLatestMealPlan(userId);
 };
 
 const generateAIMealSuggestions = async ({
@@ -1235,6 +1369,7 @@ module.exports = {
   getItemAlternatives,
   getAlternatives,
   getLatestMealPlan,
+  updateMealTimeWindows,
   formatMealPlanResponse,
   formatEssentialMealPlanResponse,
   selectBalancedMealItems,

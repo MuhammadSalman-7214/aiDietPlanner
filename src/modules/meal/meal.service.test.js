@@ -144,6 +144,13 @@ test("meal formatter normalizes display names and omits empty daily gaps", () =>
   });
 
   assert.equal(formatted.meals[0].items[0].name, "Cinnamon Cornmeal Instant Porridge");
+  assert.deepEqual(formatted.meals[0].timeWindow, {
+    meal: "Breakfast",
+    start: "07:00",
+    end: "09:00",
+    timezone: "UTC",
+    editable: true,
+  });
   assert.equal(Object.prototype.hasOwnProperty.call(formatted.actualDailyTotals, "gap"), false);
 });
 

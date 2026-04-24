@@ -13,6 +13,25 @@ const mealItemReplacementSchema = Joi.object({
   .or('itemId', 'itemName')
   .optional();
 
+const timeWindowSchema = Joi.object({
+  start: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).required(),
+  end: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).required(),
+});
+
+const mealTimeWindowsSchema = Joi.object({
+  breakfast: timeWindowSchema.optional(),
+  lunch: timeWindowSchema.optional(),
+  dinner: timeWindowSchema.optional(),
+  snacks: Joi.array().items(
+    Joi.object({
+      mealIndex: Joi.number().integer().min(1).required(),
+      start: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).required(),
+      end: Joi.string().pattern(/^([01]\d|2[0-3]):[0-5]\d$/).required(),
+    }),
+  ).optional(),
+}).min(1);
+
 module.exports = {
   mealItemReplacementSchema,
+  mealTimeWindowsSchema,
 };

@@ -126,6 +126,7 @@ const swaggerDefinition = {
       MealSelection: {
         type: "object",
         properties: {
+          timeWindow: { $ref: "#/components/schemas/MealTimeWindow" },
           items: {
             type: "array",
             items: ref("MealFoodItem"),
@@ -145,7 +146,10 @@ const swaggerDefinition = {
         type: "object",
         properties: {
           id: { type: "integer", example: 295 },
-          name: { type: "string", example: "Tofu, firm, prepared with calcium sulfate" },
+          name: {
+            type: "string",
+            example: "Tofu, firm, prepared with calcium sulfate",
+          },
           calories: { type: "number", example: 76 },
           protein: { type: "number", example: 8 },
           carbs: { type: "number", example: 2 },
@@ -200,7 +204,11 @@ const swaggerDefinition = {
         properties: {
           originalItemId: { type: "integer", example: 294 },
           originalItemName: { type: "string", example: "Bagels, egg" },
-          replaceableComponent: { type: "string", nullable: true, example: "egg" },
+          replaceableComponent: {
+            type: "string",
+            nullable: true,
+            example: "egg",
+          },
           alternatives: {
             type: "array",
             items: ref("MealItemAlternativeChoice"),
@@ -209,9 +217,17 @@ const swaggerDefinition = {
             allOf: [ref("MealItemAlternativeChoice")],
             nullable: true,
           },
-          previewImpact: { $ref: "#/components/schemas/MealAlternativePreviewImpact" },
-          previewTotals: { $ref: "#/components/schemas/MealAlternativePreviewTotals" },
-          reason: { type: "string", nullable: true, example: "no_valid_usda_match" },
+          previewImpact: {
+            $ref: "#/components/schemas/MealAlternativePreviewImpact",
+          },
+          previewTotals: {
+            $ref: "#/components/schemas/MealAlternativePreviewTotals",
+          },
+          reason: {
+            type: "string",
+            nullable: true,
+            example: "no_valid_usda_match",
+          },
         },
       },
       MealItemAlternative: {
@@ -255,8 +271,12 @@ const swaggerDefinition = {
                     },
                   },
                 },
-                previewImpact: { $ref: "#/components/schemas/MealAlternativePreviewImpact" },
-                previewTotals: { $ref: "#/components/schemas/MealAlternativePreviewTotals" },
+                previewImpact: {
+                  $ref: "#/components/schemas/MealAlternativePreviewImpact",
+                },
+                previewTotals: {
+                  $ref: "#/components/schemas/MealAlternativePreviewTotals",
+                },
                 reason: { type: "string", nullable: true, example: null },
               },
             },
@@ -274,6 +294,16 @@ const swaggerDefinition = {
             items: { type: "number" },
             example: [300],
           },
+        },
+      },
+      MealTimeWindow: {
+        type: "object",
+        properties: {
+          meal: { type: "string", example: "Breakfast" },
+          start: { type: "string", example: "07:00" },
+          end: { type: "string", example: "09:00" },
+          timezone: { type: "string", example: "UTC" },
+          editable: { type: "boolean", example: true },
         },
       },
       MealPlan: {
@@ -299,6 +329,24 @@ const swaggerDefinition = {
             },
           },
           mealTargets: { $ref: "#/components/schemas/MealTargets" },
+          mealTimeWindows: {
+            type: "object",
+            properties: {
+              breakfast: { $ref: "#/components/schemas/MealTimeWindow" },
+              lunch: { $ref: "#/components/schemas/MealTimeWindow" },
+              dinner: { $ref: "#/components/schemas/MealTimeWindow" },
+              snacks: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    mealIndex: { type: "integer", example: 1 },
+                    timeWindow: { $ref: "#/components/schemas/MealTimeWindow" },
+                  },
+                },
+              },
+            },
+          },
           breakfast: { $ref: "#/components/schemas/MealSelection" },
           lunch: { $ref: "#/components/schemas/MealSelection" },
           dinner: { $ref: "#/components/schemas/MealSelection" },
@@ -329,16 +377,28 @@ const swaggerDefinition = {
           alternativeSummary: {
             type: "object",
             properties: {
-              breakfast: { type: "array", items: ref("MealItemAlternativeSummary") },
-              lunch: { type: "array", items: ref("MealItemAlternativeSummary") },
-              dinner: { type: "array", items: ref("MealItemAlternativeSummary") },
+              breakfast: {
+                type: "array",
+                items: ref("MealItemAlternativeSummary"),
+              },
+              lunch: {
+                type: "array",
+                items: ref("MealItemAlternativeSummary"),
+              },
+              dinner: {
+                type: "array",
+                items: ref("MealItemAlternativeSummary"),
+              },
               snacks: {
                 type: "array",
                 items: {
                   type: "object",
                   properties: {
                     mealIndex: { type: "integer", example: 1 },
-                    items: { type: "array", items: ref("MealItemAlternativeSummary") },
+                    items: {
+                      type: "array",
+                      items: ref("MealItemAlternativeSummary"),
+                    },
                   },
                 },
               },
@@ -375,6 +435,27 @@ const swaggerDefinition = {
         properties: {
           success: { type: "boolean", example: true },
           data: { $ref: "#/components/schemas/SavedMealPlan" },
+        },
+      },
+      UpdateMealTimeWindowsPayload: {
+        type: "object",
+        minProperties: 1,
+        properties: {
+          breakfast: { $ref: "#/components/schemas/MealTimeWindow" },
+          lunch: { $ref: "#/components/schemas/MealTimeWindow" },
+          dinner: { $ref: "#/components/schemas/MealTimeWindow" },
+          snacks: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["mealIndex", "start", "end"],
+              properties: {
+                mealIndex: { type: "integer", example: 1 },
+                start: { type: "string", example: "11:00" },
+                end: { type: "string", example: "12:00" },
+              },
+            },
+          },
         },
       },
       HealthPayload: {
@@ -812,7 +893,7 @@ const swaggerDefinition = {
         },
       },
       post: {
-        tags: ["Users"],
+        tags: ["Users", "Meals"],
         summary: "Create user stats and auto-generate a daily meal plan",
         security: [{ BearerAuth: [] }],
         requestBody: {
@@ -827,7 +908,7 @@ const swaggerDefinition = {
         },
       },
       patch: {
-        tags: ["Users"],
+        tags: ["Users", "Meals"],
         summary: "Update user stats and auto-regenerate the daily meal plan",
         security: [{ BearerAuth: [] }],
         requestBody: {
@@ -886,275 +967,11 @@ const swaggerDefinition = {
       get: {
         tags: ["Meals"],
         summary: "Fetch the latest saved meal plan",
-        description:
-          "Returns the most recently stored meal plan for the authenticated user.",
-        operationId: "getLatestMealPlan",
         security: [{ BearerAuth: [] }],
         responses: {
           200: {
             description: "Latest meal plan",
-            content: {
-              "application/json": {
-                example: {
-                  success: true,
-                  data: {
-                    id: 18,
-                    userId: 1,
-                    createdAt: "2026-04-03T10:00:00.000Z",
-                    updatedAt: "2026-04-03T12:00:00.000Z",
-                    plan: {
-                      nutrition: {
-                        source: "user_profile",
-                        targetCalories: 2000,
-                        macros: {
-                          protein: 150,
-                          carbs: 225,
-                          fats: 67,
-                        },
-                        mealsCount: 3,
-                      },
-                      mealTargets: {
-                        breakfast: 600,
-                        lunch: 700,
-                        dinner: 700,
-                        snacks: [],
-                      },
-                      breakfast: {
-                        items: [],
-                        totals: {
-                          calories: 0,
-                          protein: 0,
-                          carbs: 0,
-                          fats: 0,
-                        },
-                      },
-                      lunch: {
-                        items: [],
-                        totals: {
-                          calories: 0,
-                          protein: 0,
-                          carbs: 0,
-                          fats: 0,
-                        },
-                      },
-                      dinner: {
-                        items: [],
-                        totals: {
-                          calories: 0,
-                          protein: 0,
-                          carbs: 0,
-                          fats: 0,
-                        },
-                      },
-                      snacks: [],
-                      alternatives: {
-                        breakfast: [
-                          {
-                            itemId: 294,
-                            itemName: "Bagels, egg",
-                            category: "breakfast",
-                            currentItem: {
-                              id: 294,
-                              name: "Bagels, egg",
-                              calories: 90,
-                              protein: 8,
-                              carbs: 2,
-                              fats: 6,
-                              category: "breakfast",
-                              dietType: "balanced",
-                              ingredients: [],
-                              instructions: [],
-                            },
-                            components: [
-                              {
-                                originalItemId: 294,
-                                originalItemName: "Bagels, egg",
-                                replaceableComponent: "egg",
-                                alternatives: [
-                                  {
-                                    id: 1678,
-                                    name: "Tofu, firm, prepared with calcium sulfate",
-                                    calories: 76,
-                                    protein: 8,
-                                    carbs: 2,
-                                    fats: 4,
-                                    matchScore: 87.2,
-                                    macroDelta: {
-                                      calories: -14,
-                                      protein: 2,
-                                      carbs: 0,
-                                      fats: -2,
-                                    },
-                                  },
-                                ],
-                                recommended: {
-                                  id: 1678,
-                                  name: "Tofu, firm, prepared with calcium sulfate",
-                                  calories: 76,
-                                  protein: 8,
-                                  carbs: 2,
-                                  fats: 4,
-                                  matchScore: 87.2,
-                                  macroDelta: {
-                                    calories: -14,
-                                    protein: 2,
-                                    carbs: 0,
-                                    fats: -2,
-                                  },
-                                },
-                                previewImpact: {
-                                  itemDelta: {
-                                    calories: -14,
-                                    protein: 2,
-                                    carbs: 0,
-                                    fats: -2,
-                                  },
-                                  mealDelta: {
-                                    calories: -14,
-                                    protein: 2,
-                                    carbs: 0,
-                                    fats: -2,
-                                  },
-                                  dayDelta: {
-                                    calories: -14,
-                                    protein: 2,
-                                    carbs: 0,
-                                    fats: -2,
-                                  },
-                                },
-                                previewTotals: {
-                                  meal: {
-                                    calories: 586,
-                                    protein: 30,
-                                    carbs: 45,
-                                    fats: 18,
-                                  },
-                                  day: {
-                                    calories: 1986,
-                                    protein: 151,
-                                    carbs: 221,
-                                    fats: 65,
-                                  },
-                                },
-                              },
-                            ],
-                          },
-                        ],
-                        lunch: [],
-                        dinner: [],
-                        snacks: [],
-                        generatedAt: "2026-04-03T12:00:00.000Z",
-                        source: "user_meal_plan",
-                      },
-                      alternativeSummary: {
-                        breakfast: [
-                          {
-                            itemId: 294,
-                            itemName: "Bagels, egg",
-                            category: "breakfast",
-                            currentItem: {
-                              id: 294,
-                              name: "Bagels, egg",
-                              calories: 90,
-                              protein: 8,
-                              carbs: 2,
-                              fats: 6,
-                              category: "breakfast",
-                              dietType: "balanced",
-                              ingredients: [],
-                              instructions: [],
-                            },
-                            currentMacros: {
-                              calories: 90,
-                              protein: 8,
-                              carbs: 2,
-                              fats: 6,
-                            },
-                            replacementComponents: [
-                              {
-                                component: "egg",
-                                recommended: {
-                                  id: 1678,
-                                  name: "Tofu, firm, prepared with calcium sulfate",
-                                  calories: 76,
-                                  protein: 8,
-                                  carbs: 2,
-                                  fats: 4,
-                                  matchScore: 87.2,
-                                  macroDelta: {
-                                    calories: -14,
-                                    protein: 2,
-                                    carbs: 0,
-                                    fats: -2,
-                                  },
-                                },
-                                totalMatches: 3,
-                                bestMatches: [
-                                  {
-                                    rank: 1,
-                                    id: 1678,
-                                    name: "Tofu, firm, prepared with calcium sulfate",
-                                    calories: 76,
-                                    protein: 8,
-                                    carbs: 2,
-                                    fats: 4,
-                                    matchScore: 87.2,
-                                    macroDelta: {
-                                      calories: -14,
-                                      protein: 2,
-                                      carbs: 0,
-                                      fats: -2,
-                                    },
-                                  },
-                                ],
-                                previewImpact: {
-                                  itemDelta: {
-                                    calories: -14,
-                                    protein: 2,
-                                    carbs: 0,
-                                    fats: -2,
-                                  },
-                                  mealDelta: {
-                                    calories: -14,
-                                    protein: 2,
-                                    carbs: 0,
-                                    fats: -2,
-                                  },
-                                  dayDelta: {
-                                    calories: -14,
-                                    protein: 2,
-                                    carbs: 0,
-                                    fats: -2,
-                                  },
-                                },
-                                previewTotals: {
-                                  meal: {
-                                    calories: 586,
-                                    protein: 30,
-                                    carbs: 45,
-                                    fats: 18,
-                                  },
-                                  day: {
-                                    calories: 1986,
-                                    protein: 151,
-                                    carbs: 221,
-                                    fats: 65,
-                                  },
-                                },
-                                reason: null,
-                              },
-                            ],
-                          },
-                        ],
-                        lunch: [],
-                        dinner: [],
-                        snacks: [],
-                      },
-                    },
-                  },
-                },
-              },
-            },
+            content: jsonContent(ref("LatestMealPlanResponse")),
           },
           401: {
             description: "Unauthorized",
@@ -1166,127 +983,87 @@ const swaggerDefinition = {
           },
         },
       },
-      "/meals/alternatives": {
-        post: {
-          tags: ["Meals"],
-          summary: "Get item-level meal alternatives",
-          description:
-            "Returns ranked alternatives for a single item in the latest meal plan and can optionally simulate a one-item swap without persisting changes.",
-          operationId: "getItemAlternatives",
-          security: [{ BearerAuth: [] }],
-          requestBody: {
-            required: true,
-            content: jsonContent({
-              type: "object",
-              properties: {
-                mealType: {
-                  type: "string",
-                  enum: ["breakfast", "lunch", "dinner", "snack"],
-                },
-                itemId: { type: "integer", example: 11 },
-                itemName: { type: "string", example: "Egg White Omelette" },
-                targetComponent: {
-                  oneOf: [
-                    { type: "string", example: "egg" },
-                    {
-                      type: "array",
-                      items: { type: "string" },
-                      example: ["egg"],
-                    },
-                  ],
-                },
-                limit: { type: "integer", example: 4 },
-              },
-            }),
+    },
+
+    "/meals/time-windows": {
+      patch: {
+        tags: ["Meals"],
+        summary: "Update meal time windows",
+        description:
+          "Update breakfast, lunch, dinner and snack timing for reminders.",
+        operationId: "updateMealTimeWindows",
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: jsonContent(ref("UpdateMealTimeWindowsPayload")),
+        },
+        responses: {
+          200: {
+            description: "Meal timing updated successfully",
+            content: jsonContent(ref("LatestMealPlanResponse")),
           },
-          responses: {
-            200: {
-              description: "Ranked item alternatives",
-              content: {
-                "application/json": {
-                  example: {
-                    success: true,
-                    data: {
-                      itemId: 11,
-                      itemName: "Egg White Omelette",
-                      category: "breakfast",
-                      currentItem: {
-                        id: 11,
-                        name: "Egg White Omelette",
-                        calories: 140,
-                        protein: 15,
-                        carbs: 3,
-                        fats: 7,
-                        category: "breakfast",
-                        dietType: "balanced",
-                        ingredients: [],
-                        instructions: [],
-                      },
-                      components: [
-                        {
-                          originalItemId: 11,
-                          originalItemName: "Egg White Omelette",
-                          replaceableComponent: "egg",
-                          alternatives: [],
-                          recommended: null,
-                          previewImpact: {
-                            itemDelta: {
-                              calories: 0,
-                              protein: 0,
-                              carbs: 0,
-                              fats: 0,
-                            },
-                            mealDelta: {
-                              calories: 0,
-                              protein: 0,
-                              carbs: 0,
-                              fats: 0,
-                            },
-                            dayDelta: {
-                              calories: 0,
-                              protein: 0,
-                              carbs: 0,
-                              fats: 0,
-                            },
-                          },
-                          previewTotals: {
-                            meal: {
-                              calories: 400,
-                              protein: 26,
-                              carbs: 30,
-                              fats: 14,
-                            },
-                            day: {
-                              calories: 2015,
-                              protein: 152,
-                              carbs: 225,
-                              fats: 67,
-                            },
-                          },
-                          reason: "no_valid_usda_match",
-                        },
-                      ],
-                    },
-                  },
-                },
+          400: {
+            description: "Validation failed",
+            content: jsonContent(ref("Error")),
+          },
+          401: {
+            description: "Unauthorized",
+            content: jsonContent(ref("Error")),
+          },
+          404: {
+            description: "Meal plan not found",
+            content: jsonContent(ref("Error")),
+          },
+        },
+      },
+    },
+
+    "/meals/alternatives": {
+      post: {
+        tags: ["Meals"],
+        summary: "Get item-level meal alternatives",
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: jsonContent({
+            type: "object",
+            required: ["mealType", "itemId"],
+            properties: {
+              mealType: {
+                type: "string",
+                enum: ["breakfast", "lunch", "dinner", "snack"],
+                example: "breakfast",
+              },
+              itemId: {
+                type: "integer",
+                example: 11,
+              },
+              itemName: {
+                type: "string",
+                example: "Egg White Omelette",
+              },
+              targetComponent: {
+                type: "string",
+                example: "egg",
+              },
+              limit: {
+                type: "integer",
+                example: 4,
               },
             },
-            400: {
-              description: "Validation failed",
-              content: jsonContent(ref("Error")),
-            },
-            401: {
-              description: "Unauthorized",
-              content: jsonContent(ref("Error")),
-            },
-            404: {
-              description: "Meal item not found",
-              content: jsonContent(ref("Error")),
-            },
-            409: {
-              description: "Ambiguous meal item match",
-              content: jsonContent(ref("Error")),
-            },
+          }),
+        },
+        responses: {
+          200: {
+            description: "Alternatives fetched",
+          },
+          400: {
+            description: "Validation failed",
+            content: jsonContent(ref("Error")),
+          },
+          401: {
+            description: "Unauthorized",
+            content: jsonContent(ref("Error")),
           },
         },
       },

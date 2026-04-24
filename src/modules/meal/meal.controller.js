@@ -90,4 +90,19 @@ const getLatestMealPlan = async (req, res, next) => {
   }
 };
 
-module.exports = { generateMealPlan, getAlternatives, getLatestMealPlan };
+const updateMealTimeWindows = async (req, res, next) => {
+  try {
+    const plan = await mealService.updateMealTimeWindows(req.user.id, req.body);
+    return res.json({
+      success: true,
+      data: {
+        ...plan,
+        plan: mealService.formatEssentialMealPlanResponse(plan.plan),
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+module.exports = { generateMealPlan, getAlternatives, getLatestMealPlan, updateMealTimeWindows };
