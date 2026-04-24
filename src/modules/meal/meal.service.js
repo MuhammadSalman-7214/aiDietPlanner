@@ -622,14 +622,6 @@ const renderMealMarkdown = (meal) => {
 
 const renderMealPlanMarkdown = (formatted = {}) => {
   const lines = [];
-  if (formatted.userSummary) {
-    lines.push(
-      `## User Summary`,
-      `Age: ${formatted.userSummary.age ?? "-" } | Gender: ${formatted.userSummary.gender ?? "-" } | Goal: ${formatted.userSummary.goal ?? "-" } | Activity: ${formatted.userSummary.activityLevel ?? "-" } | Height: ${formatted.userSummary.heightCm ?? "-"} cm | Weight: ${formatted.userSummary.weightKg ?? "-"} kg`,
-      "",
-    );
-  }
-
   lines.push(
     `## Daily Nutrition Targets`,
     `Calories: ${roundCalories(formatted.dailyNutritionTargets?.calories)} kcal`,
@@ -679,9 +671,6 @@ const formatEssentialMealPlanResponse = (plan) => {
   if (!plan || typeof plan !== "object") return plan;
 
   const constraints = plan.nutrition?.constraints || {};
-  const userSummary = buildUserSummary(
-    plan.nutrition?.userSummary || plan.nutrition?.profile || plan.nutrition?.user || {},
-  );
   const dailyTargets = {
     calories: roundCalories(plan.nutrition?.targetCalories),
     macros: {
@@ -734,7 +723,6 @@ const formatEssentialMealPlanResponse = (plan) => {
     : null;
 
   const formatted = {
-    userSummary,
     dailyNutritionTargets: dailyTargets,
     actualDailyTotals: {
       calories: roundCalories(actualTotals.calories),
@@ -967,7 +955,6 @@ const buildMealPlanCore = async ({
       targetCalories: context.calories,
       macros: context.macros,
       mealsCount: context.mealsCount,
-      userSummary: buildUserSummary(context.stats || {}),
       constraints: {
         mealPreferences: context.mealPreferences,
         mealAllergies: context.allergies,
