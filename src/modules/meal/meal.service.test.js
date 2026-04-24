@@ -1,7 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { selectBalancedMealItems } = require("./meal.service");
+const {
+  formatEssentialMealPlanResponse,
+  selectBalancedMealItems,
+} = require("./meal.service");
 
 const buildFood = (overrides) => ({
   category: "breakfast",
@@ -104,4 +107,149 @@ test("meal selection hits the requested calorie target on a simple food pool", (
 
   assert.equal(Math.round(selection.totals.calories), 450);
   assert.equal(Math.abs(selection.totals.calories - 450) <= 0.1, true);
+});
+
+test("meal formatter normalizes display names and omits empty daily gaps", () => {
+  const formatted = formatEssentialMealPlanResponse({
+    nutrition: {
+      targetCalories: 250,
+      macros: {
+        protein: 25,
+        carbs: 20,
+        fats: 5,
+      },
+    },
+    breakfast: {
+      items: [
+        {
+          id: 71,
+          name: "CINNAMON CORNMEAL INSTANT PORRIDGE, CINNAMON",
+          calories: 250,
+          protein: 10,
+          carbs: 30,
+          fats: 5,
+          weightGrams: 100,
+        },
+      ],
+      totals: {
+        calories: 250,
+        protein: 10,
+        carbs: 30,
+        fats: 5,
+      },
+    },
+    lunch: { items: [], totals: { calories: 0, protein: 0, carbs: 0, fats: 0 } },
+    dinner: { items: [], totals: { calories: 0, protein: 0, carbs: 0, fats: 0 } },
+    snacks: [],
+  });
+
+  assert.equal(formatted.meals[0].items[0].name, "Cinnamon Cornmeal Instant Porridge");
+  assert.equal(Object.prototype.hasOwnProperty.call(formatted.actualDailyTotals, "gap"), false);
+});
+
+test("meal formatter emits simplified swap suggestions without self-swaps", () => {
+  const formatted = formatEssentialMealPlanResponse({
+    nutrition: {
+      targetCalories: 250,
+      macros: {
+        protein: 25,
+        carbs: 20,
+        fats: 5,
+      },
+    },
+    breakfast: {
+      items: [
+        {
+          id: 81,
+          name: "CINNAMON CORNMEAL INSTANT PORRIDGE, CINNAMON",
+          calories: 250,
+          protein: 10,
+          carbs: 30,
+          fats: 5,
+          weightGrams: 100,
+        },
+      ],
+      totals: {
+        calories: 250,
+        protein: 10,
+        carbs: 30,
+        fats: 5,
+      },
+    },
+    lunch: { items: [], totals: { calories: 0, protein: 0, carbs: 0, fats: 0 } },
+    dinner: { items: [], totals: { calories: 0, protein: 0, carbs: 0, fats: 0 } },
+    snacks: [],
+    alternatives: {
+      breakfast: [
+        {
+          currentItem: {
+            id: 81,
+            name: "CINNAMON CORNMEAL INSTANT PORRIDGE, CINNAMON",
+            calories: 250,
+            protein: 10,
+            carbs: 30,
+            fats: 5,
+          },
+          originalItemId: 81,
+          components: [
+            {
+              recommended: {
+                id: 82,
+                name: "OAT PORRIDGE",
+                calories: 200,
+                protein: 7,
+                carbs: 34,
+                fats: 5,
+                matchScore: 0.9,
+                isSafeSwap: true,
+              },
+              alternatives: [
+                {
+                  id: 81,
+                  name: "CINNAMON CORNMEAL INSTANT PORRIDGE, CINNAMON",
+                  calories: 250,
+                  protein: 10,
+                  carbs: 30,
+                  fats: 5,
+                  matchScore: 1,
+                  isSafeSwap: true,
+                },
+                {
+                  id: 82,
+                  name: "OAT PORRIDGE",
+                  calories: 200,
+                  protein: 7,
+                  carbs: 34,
+                  fats: 5,
+                  matchScore: 0.9,
+                  isSafeSwap: true,
+                },
+                {
+                  id: 83,
+                  name: "CREAMY PORRIDGE",
+                  calories: 205,
+                  protein: 8,
+                  carbs: 33,
+                  fats: 6,
+                  matchScore: 0.8,
+                  isSafeSwap: true,
+                },
+              ],
+              isSafeSwap: true,
+              reason: null,
+            },
+          ],
+        },
+      ],
+      lunch: [],
+      dinner: [],
+      snacks: [],
+    },
+  });
+
+  assert.equal(formatted.swapSuggestions.length, 1);
+  assert.deepEqual(Object.keys(formatted.swapSuggestions[0].currentItem), ["id", "name", "calories", "protein", "carbs", "fats"]);
+  assert.equal(formatted.swapSuggestions[0].currentItem.name, "Cinnamon Cornmeal Instant Porridge");
+  assert.equal(formatted.swapSuggestions[0].alternatives.some((alt) => alt.id === 81), false);
+  assert.equal(formatted.swapSuggestions[0].alternatives.length >= 2, true);
 });

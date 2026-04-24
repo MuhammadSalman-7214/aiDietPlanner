@@ -7,7 +7,7 @@ const {
   filterCandidates,
   getValidAlternatives,
 } = require("./food.alternative.service");
-const { normalizeUsdaFood } = require("./food.usda.service");
+const { normalizeDisplayName, normalizeUsdaFood } = require("./food.usda.service");
 
 test("Bagels, egg excludes egg-based alternatives and returns tofu or chicken", async () => {
   const item = normalizeUsdaFood({
@@ -150,4 +150,37 @@ test("Items without replaceable components still get whole-item alternatives", a
   assert.equal(result.components[0].alternatives.length > 0, true);
   assert.equal(result.components[0].alternatives[0].name.includes("Balanced Breakfast"), true);
   assert.equal(result.components[0].alternatives.some((candidate) => /Off Macro/.test(candidate.name)), false);
+});
+
+test("Whole-item alternatives never return the original food as its own swap", async () => {
+  const result = await buildItemAlternatives({
+    item: normalizeUsdaFood({
+      id: 41,
+      name: "CINNAMON CORNMEAL INSTANT PORRIDGE, CINNAMON",
+      calories: 210,
+      protein: 8,
+      carbs: 36,
+      fats: 4,
+      weightGrams: 100,
+      category: "breakfast",
+      dietType: "balanced",
+    }),
+    category: "breakfast",
+    mealTotals: { calories: 210, protein: 8, carbs: 36, fats: 4 },
+    dayTotals: { calories: 900, protein: 60, carbs: 90, fats: 30 },
+    foods: [
+      { id: 41, name: "CINNAMON CORNMEAL INSTANT PORRIDGE, CINNAMON", calories: 210, protein: 8, carbs: 36, fats: 4, weightGrams: 100, category: "breakfast", dietType: "balanced" },
+      { id: 42, name: "Oat Porridge", calories: 200, protein: 7, carbs: 34, fats: 5, weightGrams: 100, category: "breakfast", dietType: "balanced" },
+      { id: 43, name: "Creamy Porridge", calories: 205, protein: 8, carbs: 33, fats: 6, weightGrams: 100, category: "breakfast", dietType: "balanced" },
+      { id: 44, name: "Banana Porridge", calories: 215, protein: 9, carbs: 35, fats: 4, weightGrams: 100, category: "breakfast", dietType: "balanced" },
+    ],
+    limit: 5,
+  });
+
+  const porridgeBlock = result.components.find((component) => component.replaceableComponent === null);
+  assert.ok(porridgeBlock);
+  assert.equal(porridgeBlock.alternatives.some((candidate) => candidate.id === 41), false);
+  assert.equal(porridgeBlock.recommended.id === 41, false);
+  assert.equal(porridgeBlock.alternatives.length >= 2, true);
+  assert.equal(result.itemName, normalizeDisplayName("CINNAMON CORNMEAL INSTANT PORRIDGE, CINNAMON"));
 });

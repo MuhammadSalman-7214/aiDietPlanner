@@ -11,6 +11,7 @@ const {
   isMealSafeFood,
   normalizeUsdaFood,
   normalizeUsdaFoods,
+  normalizeDisplayName,
   percentDiff,
   roundValue,
   safeNumber,
@@ -295,7 +296,7 @@ const summarizeChoice = (food, originalReference, { usedFallback = false } = {})
   });
   return {
     id: food.id,
-    name: food.name,
+    name: normalizeDisplayName(food.name),
     calories: safeNumber(food.calories),
     protein: safeNumber(food.protein),
     carbs: safeNumber(food.carbs),
@@ -419,7 +420,9 @@ const rankWholeItemAlternatives = ({
   category,
   tolerance = 0.3,
 }) => {
-  const validCandidates = candidates.filter((candidate) => isMealSafeFood(candidate));
+  const validCandidates = candidates.filter(
+    (candidate) => isMealSafeFood(candidate) && safeNumber(candidate.id) !== safeNumber(originalItem.id),
+  );
   const categoryCandidates = validCandidates.filter((candidate) => getCategoryMatch(category, candidate));
   const pools = categoryCandidates.length > 0 ? [categoryCandidates, validCandidates] : [validCandidates];
 
@@ -682,7 +685,7 @@ const buildItemAlternatives = async ({
 
   return {
     itemId: normalizedItem.id,
-    itemName: normalizedItem.name,
+    itemName: normalizeDisplayName(normalizedItem.name),
     category,
     currentItem: normalizedItem,
     itemAlternatives: wholeItemAlternatives.slice(0, 5),

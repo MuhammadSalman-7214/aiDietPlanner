@@ -143,6 +143,57 @@ const normalizeFoodName = (value) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const toTitleCase = (value = "") =>
+  String(value || "")
+    .toLowerCase()
+    .replace(/\b([a-z])([a-z']*)/g, (_, first, rest) => `${first.toUpperCase()}${rest}`);
+
+const normalizeDisplayName = (name) => {
+  const raw = String(name || "").trim();
+  if (!raw) return "";
+
+  const cleaned = raw
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/[^a-zA-Z0-9,&/\-\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const parts = cleaned.split(",").map((part) => part.trim()).filter(Boolean);
+  let display = cleaned;
+
+  if (parts.length > 1) {
+    const basePart = parts[0];
+    const modifierPart = parts.slice(1).join(" ").trim();
+    const baseNormalized = normalizeFoodName(basePart);
+    const modifierNormalized = normalizeFoodName(modifierPart);
+
+    if (baseNormalized && modifierNormalized) {
+      if (baseNormalized.includes(modifierNormalized)) {
+        display = basePart;
+      } else if (modifierNormalized.includes(baseNormalized)) {
+        display = modifierPart;
+      } else {
+        display = `${modifierPart} ${basePart}`;
+      }
+    }
+  }
+
+  const deduped = display
+    .split(/\s+/)
+    .filter(Boolean)
+    .filter((word, index, words) => {
+      if (index === 0) return true;
+      return word.toLowerCase() !== words[index - 1].toLowerCase();
+    })
+    .join(" ")
+    .replace(/\s*-\s*/g, " - ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return toTitleCase(deduped);
+};
+
 const isBlacklistedFood = (food) => {
   const haystack = normalizeFoodName([
     food?.name,
@@ -308,6 +359,7 @@ module.exports = {
   isMealSafeFood,
   normalizeCalories,
   normalizeFoodName,
+  normalizeDisplayName,
   normalizeUsdaFood,
   normalizeUsdaFoods,
   resolveComponentPriority,

@@ -26,6 +26,7 @@
     "mysql2": "^3.20.0",
     "nodemailer": "^6.10.1",
     "openai": "^4.86.2",
+    "openfoodfacts-nodejs": "^0.1.0",
     "pino": "^9.6.0",
     "pino-pretty": "^11.3.0",
     "redis": "^4.7.0",

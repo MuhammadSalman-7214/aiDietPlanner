@@ -14,6 +14,7 @@ const logger = require("../../utils/logger");
 const {
   normalizeUsdaFood,
   normalizeUsdaFoods,
+  normalizeDisplayName,
   classifyFoodRole,
   isMealSafeFood,
   roundValue,
@@ -300,7 +301,7 @@ const summarizeFoodItem = (food) => {
   const normalizedFood = normalizeUsdaFood(food);
   return {
     id: normalizedFood.id,
-    name: normalizedFood.name,
+    name: normalizeDisplayName(normalizedFood.name),
     calories: safeNumber(normalizedFood.calories),
     protein: safeNumber(normalizedFood.protein),
     carbs: safeNumber(normalizedFood.carbs),
@@ -526,7 +527,7 @@ const getMealTotalsFromSelection = (selection = {}) => selection?.totals || aggr
 
 const getMealItemRows = (items = []) =>
   items.map((item) => ({
-    name: item.name,
+    name: normalizeDisplayName(item.name),
     calories: roundCalories(item.calories),
     protein: roundMacro(item.protein),
     carbs: roundMacro(item.carbs),
@@ -536,7 +537,7 @@ const getMealItemRows = (items = []) =>
 
 const getFoodDetail = (item = {}) => ({
   id: item.id ?? null,
-  name: item.name ?? null,
+  name: item.name ? normalizeDisplayName(item.name) : null,
   calories: roundCalories(item.calories),
   protein: roundMacro(item.protein),
   carbs: roundMacro(item.carbs),
@@ -554,27 +555,38 @@ const extractSwapSuggestions = (alternatives = {}) => {
       for (const componentBlock of Array.isArray(block.components) ? block.components : []) {
         if (!componentBlock?.recommended || componentBlock.reason === "no_valid_match_after_fallback") continue;
         if (componentBlock.isSafeSwap === false || componentBlock.recommended?.isSafeSwap === false) continue;
+        const currentItem = block.currentItem || {};
+        const currentItemId = currentItem.id ?? block.originalItemId ?? null;
+        const alternatives = Array.isArray(componentBlock.alternatives)
+          ? componentBlock.alternatives
+            .filter((alternative) => alternative && alternative.id !== currentItemId)
+            .slice(0, 3)
+            .map((alternative) => ({
+              id: alternative.id,
+              name: normalizeDisplayName(alternative.name),
+              calories: roundCalories(alternative.scaledPortion?.calories ?? alternative.calories),
+              protein: roundMacro(alternative.scaledPortion?.protein ?? alternative.protein),
+              carbs: roundMacro(alternative.scaledPortion?.carbs ?? alternative.carbs),
+              fats: roundMacro(alternative.scaledPortion?.fats ?? alternative.fats),
+              matchScore: roundMacro(alternative.matchScore ?? 0),
+              isSafeSwap: Boolean(alternative.isSafeSwap),
+            }))
+          : [];
+
+        if (alternatives.length < 2) continue;
+        if (alternatives[0]?.id === currentItemId) continue;
+
         formatted.push({
           meal: mealLabel,
-          currentItem: block.currentItem?.name || block.itemName || block.originalItemName || "Unknown item",
-          currentItemDetails: getFoodDetail(block.currentItem || {}),
-          recommendedItem: componentBlock.recommended.name,
-          recommendedItemDetails: {
-            ...getFoodDetail({
-              ...componentBlock.recommended,
-              calories: componentBlock.recommended.scaledPortion?.calories ?? componentBlock.recommended.calories,
-              protein: componentBlock.recommended.scaledPortion?.protein ?? componentBlock.recommended.protein,
-              carbs: componentBlock.recommended.scaledPortion?.carbs ?? componentBlock.recommended.carbs,
-              fats: componentBlock.recommended.scaledPortion?.fats ?? componentBlock.recommended.fats,
-            }),
-            matchScore: componentBlock.recommended.matchScore ?? null,
-            confidence: componentBlock.recommended.confidence ?? "low",
-            isSafeSwap: componentBlock.isSafeSwap ?? componentBlock.recommended.isSafeSwap ?? false,
-            scaleFactor: componentBlock.recommended.scaleFactor ?? null,
+          currentItem: {
+            id: currentItem.id ?? null,
+            name: currentItem.name ? normalizeDisplayName(currentItem.name) : null,
+            calories: roundCalories(currentItem.calories),
+            protein: roundMacro(currentItem.protein),
+            carbs: roundMacro(currentItem.carbs),
+            fats: roundMacro(currentItem.fats),
           },
-          matchScore: componentBlock.recommended.matchScore ?? null,
-          confidence: componentBlock.recommended.confidence ?? "low",
-          isSafeSwap: componentBlock.isSafeSwap ?? componentBlock.recommended.isSafeSwap ?? false,
+          alternatives,
         });
       }
     }
@@ -624,7 +636,9 @@ const renderMealPlanMarkdown = (formatted = {}) => {
     `Protein: ${roundMacro(formatted.dailyNutritionTargets?.macros?.protein)} g | Carbs: ${roundMacro(formatted.dailyNutritionTargets?.macros?.carbs)} g | Fats: ${roundMacro(formatted.dailyNutritionTargets?.macros?.fats)} g`,
     "",
     `## Actual Daily Totals`,
-    `Calories: ${roundCalories(formatted.actualDailyTotals?.calories)} kcal (${roundMacro(formatted.actualDailyTotals?.gap?.percent)}% gap, ${roundCalories(formatted.actualDailyTotals?.gap?.absolute)} kcal ${formatted.actualDailyTotals?.gap?.status || "deficit"})`,
+    formatted.actualDailyTotals?.gap
+      ? `Calories: ${roundCalories(formatted.actualDailyTotals?.calories)} kcal (${roundMacro(formatted.actualDailyTotals?.gap?.percent)}% gap, ${roundCalories(formatted.actualDailyTotals?.gap?.absolute)} kcal ${formatted.actualDailyTotals?.gap?.status || "deficit"})`
+      : `Calories: ${roundCalories(formatted.actualDailyTotals?.calories)} kcal`,
     `Protein: ${roundMacro(formatted.actualDailyTotals?.macros?.protein)} g | Carbs: ${roundMacro(formatted.actualDailyTotals?.macros?.carbs)} g | Fats: ${roundMacro(formatted.actualDailyTotals?.macros?.fats)} g`,
     `Macro split: Protein ${roundMacro(formatted.actualDailyTotals?.macroPercentages?.protein)}% | Carbs ${roundMacro(formatted.actualDailyTotals?.macroPercentages?.carbs)}% | Fats ${roundMacro(formatted.actualDailyTotals?.macroPercentages?.fats)}%`,
     "",
@@ -643,8 +657,11 @@ const renderMealPlanMarkdown = (formatted = {}) => {
   if (formatted.swapSuggestions?.length) {
     lines.push("## Swap Suggestions", "");
     for (const swap of formatted.swapSuggestions) {
-      const safetyNote = swap.isSafeSwap ? "" : " - unverified swap";
-      lines.push(`- ${swap.currentItem} → ${swap.recommendedItem} (match ${roundMacro(swap.matchScore ?? 0)}, confidence ${swap.confidence})${safetyNote}`);
+      const topAlternative = Array.isArray(swap.alternatives) ? swap.alternatives[0] : null;
+      const safetyNote = topAlternative?.isSafeSwap ? "" : " - unverified swap";
+      lines.push(
+        `- ${swap.currentItem?.name || "Unknown item"} → ${topAlternative?.name || "Unknown alternative"} (match ${roundMacro(topAlternative?.matchScore ?? 0)})${safetyNote}`,
+      );
     }
     lines.push("");
   }
@@ -720,18 +737,22 @@ const formatEssentialMealPlanResponse = (plan) => {
     userSummary,
     dailyNutritionTargets: dailyTargets,
     actualDailyTotals: {
-    calories: roundCalories(actualTotals.calories),
-    macros: {
-      protein: roundMacro(actualTotals.protein),
-      carbs: roundMacro(actualTotals.carbs),
-      fats: roundMacro(actualTotals.fats),
+      calories: roundCalories(actualTotals.calories),
+      macros: {
+        protein: roundMacro(actualTotals.protein),
+        carbs: roundMacro(actualTotals.carbs),
+        fats: roundMacro(actualTotals.fats),
       },
       macroPercentages: actualMacroPercentages,
-      gap: {
-        percent: roundMacro(calorieGapPercent),
-        absolute: roundCalories(calorieGapAbsolute),
-        status: calorieGapStatus,
-      },
+      ...(calorieGapPercent > 2
+        ? {
+            gap: {
+              percent: roundMacro(calorieGapPercent),
+              absolute: roundCalories(calorieGapAbsolute),
+              status: calorieGapStatus,
+            },
+          }
+        : {}),
     },
     meals,
     swapSuggestions,
@@ -756,10 +777,15 @@ const buildAlternativeSummary = (alternatives = {}) => {
   const summarizeMealItems = (items = []) =>
     items.map((itemEntry) => ({
       itemId: itemEntry.itemId,
-      itemName: itemEntry.itemName,
+      itemName: itemEntry.itemName ? normalizeDisplayName(itemEntry.itemName) : itemEntry.itemName,
       category: itemEntry.category,
-      currentItem: itemEntry.currentItem,
-        currentMacros: itemEntry.currentItem
+      currentItem: itemEntry.currentItem
+        ? {
+            ...itemEntry.currentItem,
+            name: normalizeDisplayName(itemEntry.currentItem.name),
+          }
+        : itemEntry.currentItem,
+      currentMacros: itemEntry.currentItem
         ? {
             calories: safeNumber(itemEntry.currentItem.calories),
             protein: safeNumber(itemEntry.currentItem.protein),
@@ -771,12 +797,18 @@ const buildAlternativeSummary = (alternatives = {}) => {
         ? itemEntry.itemAlternatives.slice(0, 3).map((alternative, index) => ({
             rank: index + 1,
             ...alternative,
+            name: alternative.name ? normalizeDisplayName(alternative.name) : alternative.name,
           }))
         : [],
       itemAlternativeBlock: itemEntry.itemAlternativeBlock || null,
       replacementComponents: itemEntry.components.map((componentBlock) => ({
         component: componentBlock.replaceableComponent,
-        recommended: componentBlock.recommended,
+        recommended: componentBlock.recommended
+          ? {
+              ...componentBlock.recommended,
+              name: normalizeDisplayName(componentBlock.recommended.name),
+            }
+          : componentBlock.recommended,
         totalMatches: Array.isArray(componentBlock.alternatives)
           ? componentBlock.alternatives.length
           : 0,
@@ -784,6 +816,7 @@ const buildAlternativeSummary = (alternatives = {}) => {
           ? componentBlock.alternatives.slice(0, 3).map((alternative, index) => ({
               rank: index + 1,
               ...alternative,
+              name: alternative.name ? normalizeDisplayName(alternative.name) : alternative.name,
             }))
           : [],
         previewImpact: componentBlock.previewImpact,
