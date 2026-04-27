@@ -440,23 +440,51 @@ const swaggerDefinition = {
       UpdateMealTimeWindowsPayload: {
         type: "object",
         minProperties: 1,
-        properties: {
-          breakfast: { $ref: "#/components/schemas/MealTimeWindow" },
-          lunch: { $ref: "#/components/schemas/MealTimeWindow" },
-          dinner: { $ref: "#/components/schemas/MealTimeWindow" },
-          snacks: {
-            type: "array",
-            items: {
-              type: "object",
-              required: ["mealIndex", "start", "end"],
-              properties: {
-                mealIndex: { type: "integer", example: 1 },
-                start: { type: "string", example: "11:00" },
-                end: { type: "string", example: "12:00" },
+        oneOf: [
+          {
+            description: "Update a single meal time window.",
+            required: ["mealType", "start", "end"],
+            properties: {
+              mealType: {
+                type: "string",
+                enum: ["breakfast", "lunch", "dinner", "snack"],
+                example: "breakfast",
+              },
+              mealIndex: {
+                type: "integer",
+                nullable: true,
+                example: 1,
+                description: "Required when mealType is snack.",
+              },
+              start: { type: "string", example: "05:00" },
+              end: { type: "string", example: "07:00" },
+              timezone: { type: "string", example: "UTC" },
+            },
+          },
+          {
+            description: "Legacy bulk update shape for multiple meal windows.",
+            type: "object",
+            minProperties: 1,
+            properties: {
+              breakfast: { $ref: "#/components/schemas/MealTimeWindow" },
+              lunch: { $ref: "#/components/schemas/MealTimeWindow" },
+              dinner: { $ref: "#/components/schemas/MealTimeWindow" },
+              snacks: {
+                type: "array",
+                items: {
+                  type: "object",
+                  required: ["mealIndex", "start", "end"],
+                  properties: {
+                    mealIndex: { type: "integer", example: 1 },
+                    start: { type: "string", example: "11:00" },
+                    end: { type: "string", example: "12:00" },
+                    timezone: { type: "string", example: "UTC" },
+                  },
+                },
               },
             },
           },
-        },
+        ],
       },
       HealthPayload: {
         type: "object",
@@ -893,7 +921,7 @@ const swaggerDefinition = {
         },
       },
       post: {
-        tags: ["Users", "Meals"],
+        tags: ["Users"],
         summary: "Create user stats and auto-generate a daily meal plan",
         security: [{ BearerAuth: [] }],
         requestBody: {
@@ -908,7 +936,7 @@ const swaggerDefinition = {
         },
       },
       patch: {
-        tags: ["Users", "Meals"],
+        tags: ["Users"],
         summary: "Update user stats and auto-regenerate the daily meal plan",
         security: [{ BearerAuth: [] }],
         requestBody: {
@@ -990,7 +1018,7 @@ const swaggerDefinition = {
         tags: ["Meals"],
         summary: "Update meal time windows",
         description:
-          "Update breakfast, lunch, dinner and snack timing for reminders.",
+          "Update a single meal time window or submit the legacy bulk window payload.",
         operationId: "updateMealTimeWindows",
         security: [{ BearerAuth: [] }],
         requestBody: {
@@ -1018,56 +1046,56 @@ const swaggerDefinition = {
       },
     },
 
-    "/meals/alternatives": {
-      post: {
-        tags: ["Meals"],
-        summary: "Get item-level meal alternatives",
-        security: [{ BearerAuth: [] }],
-        requestBody: {
-          required: true,
-          content: jsonContent({
-            type: "object",
-            required: ["mealType", "itemId"],
-            properties: {
-              mealType: {
-                type: "string",
-                enum: ["breakfast", "lunch", "dinner", "snack"],
-                example: "breakfast",
-              },
-              itemId: {
-                type: "integer",
-                example: 11,
-              },
-              itemName: {
-                type: "string",
-                example: "Egg White Omelette",
-              },
-              targetComponent: {
-                type: "string",
-                example: "egg",
-              },
-              limit: {
-                type: "integer",
-                example: 4,
-              },
-            },
-          }),
-        },
-        responses: {
-          200: {
-            description: "Alternatives fetched",
-          },
-          400: {
-            description: "Validation failed",
-            content: jsonContent(ref("Error")),
-          },
-          401: {
-            description: "Unauthorized",
-            content: jsonContent(ref("Error")),
-          },
-        },
-      },
-    },
+    // "/meals/alternatives": {
+    //   post: {
+    //     tags: ["Meals"],
+    //     summary: "Get item-level meal alternatives",
+    //     security: [{ BearerAuth: [] }],
+    //     requestBody: {
+    //       required: true,
+    //       content: jsonContent({
+    //         type: "object",
+    //         required: ["mealType", "itemId"],
+    //         properties: {
+    //           mealType: {
+    //             type: "string",
+    //             enum: ["breakfast", "lunch", "dinner", "snack"],
+    //             example: "breakfast",
+    //           },
+    //           itemId: {
+    //             type: "integer",
+    //             example: 11,
+    //           },
+    //           itemName: {
+    //             type: "string",
+    //             example: "Egg White Omelette",
+    //           },
+    //           targetComponent: {
+    //             type: "string",
+    //             example: "egg",
+    //           },
+    //           limit: {
+    //             type: "integer",
+    //             example: 4,
+    //           },
+    //         },
+    //       }),
+    //     },
+    //     responses: {
+    //       200: {
+    //         description: "Alternatives fetched",
+    //       },
+    //       400: {
+    //         description: "Validation failed",
+    //         content: jsonContent(ref("Error")),
+    //       },
+    //       401: {
+    //         description: "Unauthorized",
+    //         content: jsonContent(ref("Error")),
+    //       },
+    //     },
+    //   },
+    // },
   },
 };
 

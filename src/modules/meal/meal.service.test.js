@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 
 const {
   formatEssentialMealPlanResponse,
+  normalizeMealTimeWindowUpdatePayload,
   selectBalancedMealItems,
 } = require("./meal.service");
 
@@ -259,4 +260,40 @@ test("meal formatter emits simplified swap suggestions without self-swaps", () =
   assert.equal(formatted.swapSuggestions[0].currentItem.name, "Cinnamon Cornmeal Instant Porridge");
   assert.equal(formatted.swapSuggestions[0].alternatives.some((alt) => alt.id === 81), false);
   assert.equal(formatted.swapSuggestions[0].alternatives.length >= 2, true);
+});
+
+test("meal time window updates normalize single-meal payloads", () => {
+  assert.deepEqual(
+    normalizeMealTimeWindowUpdatePayload({
+      mealType: "breakfast",
+      start: "05:00",
+      end: "07:00",
+    }),
+    {
+      breakfast: {
+        start: "05:00",
+        end: "07:00",
+        timezone: undefined,
+      },
+    },
+  );
+
+  assert.deepEqual(
+    normalizeMealTimeWindowUpdatePayload({
+      mealType: "snack",
+      mealIndex: 2,
+      start: "08:00",
+      end: "10:00",
+    }),
+    {
+      snacks: [
+        {
+          mealIndex: 2,
+          start: "08:00",
+          end: "10:00",
+          timezone: undefined,
+        },
+      ],
+    },
+  );
 });
