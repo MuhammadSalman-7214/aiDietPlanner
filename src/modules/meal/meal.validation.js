@@ -15,6 +15,16 @@ const mealItemReplacementSchema = Joi.object({
 
 const timePattern = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+const mealCompletionSchema = Joi.object({
+  mealType: Joi.string().valid('breakfast', 'lunch', 'dinner', 'snack').required(),
+  mealIndex: Joi.number().integer().min(1).when('mealType', {
+    is: 'snack',
+    then: Joi.required(),
+    otherwise: Joi.forbidden(),
+  }),
+  completedAt: Joi.date().iso().optional(),
+});
+
 const timeWindowSchema = Joi.object({
   start: Joi.string().pattern(timePattern).required(),
   end: Joi.string().pattern(timePattern).required(),
@@ -52,6 +62,7 @@ const mealTimeWindowsSchema = Joi.alternatives().try(
 
 module.exports = {
   mealItemReplacementSchema,
+  mealCompletionSchema,
   mealTimeWindowUpdateSchema,
   mealTimeWindowsSchema,
 };

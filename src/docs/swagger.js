@@ -486,6 +486,29 @@ const swaggerDefinition = {
           },
         ],
       },
+      MealCompletionPayload: {
+        type: "object",
+        required: ["mealType"],
+        properties: {
+          mealType: {
+            type: "string",
+            enum: ["breakfast", "lunch", "dinner", "snack"],
+            example: "breakfast",
+          },
+          // mealIndex: {
+          //   type: "integer",
+          //   nullable: true,
+          //   example: 1,
+          //   description: "Required when mealType is snack.",
+          // },
+          completedAt: {
+            type: "string",
+            format: "date-time",
+            nullable: true,
+            example: "2026-05-12T08:30:00.000Z",
+          },
+        },
+      },
       HealthPayload: {
         type: "object",
         properties: {
@@ -1029,6 +1052,35 @@ const swaggerDefinition = {
           200: {
             description: "Meal timing updated successfully",
             content: jsonContent(ref("LatestMealPlanResponse")),
+          },
+          400: {
+            description: "Validation failed",
+            content: jsonContent(ref("Error")),
+          },
+          401: {
+            description: "Unauthorized",
+            content: jsonContent(ref("Error")),
+          },
+          404: {
+            description: "Meal plan not found",
+            content: jsonContent(ref("Error")),
+          },
+        },
+      },
+    },
+    "/meals/complete": {
+      post: {
+        tags: ["Meals"],
+        summary: "Mark a meal as completed",
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: jsonContent(ref("MealCompletionPayload")),
+        },
+        responses: {
+          200: {
+            description: "Meal completion saved",
+            content: jsonContent(ref("MessageResponse")),
           },
           400: {
             description: "Validation failed",

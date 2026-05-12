@@ -496,6 +496,50 @@ const getMealDisplayName = (mealType, index = null) => {
   return "Meal";
 };
 
+const cloneMealCompletions = (mealCompletions = {}) => {
+  if (!mealCompletions || typeof mealCompletions !== "object") return {};
+
+  return {
+    ...(mealCompletions.breakfast ? { breakfast: { ...mealCompletions.breakfast } } : {}),
+    ...(mealCompletions.lunch ? { lunch: { ...mealCompletions.lunch } } : {}),
+    ...(mealCompletions.dinner ? { dinner: { ...mealCompletions.dinner } } : {}),
+    ...(Array.isArray(mealCompletions.snacks)
+      ? {
+          snacks: mealCompletions.snacks.map((snack) => (snack ? { ...snack } : snack)),
+        }
+      : {}),
+  };
+};
+
+const buildMealCompletionMessage = (mealType, mealIndex = null) => {
+  const mealLabel = getMealDisplayName(mealType, mealIndex !== null ? Number(mealIndex) - 1 : null);
+  return `${mealLabel} is done.`;
+};
+
+const updateMealCompletionState = (mealCompletions = {}, { mealType, mealIndex = null, completedAt }) => {
+  const nextMealCompletions = cloneMealCompletions(mealCompletions);
+  const completedAtIso = completedAt instanceof Date ? completedAt.toISOString() : new Date(completedAt).toISOString();
+
+  if (mealType === "snack") {
+    const snackIndex = Number(mealIndex);
+    const snacks = Array.isArray(nextMealCompletions.snacks) ? [...nextMealCompletions.snacks] : [];
+    snacks[snackIndex - 1] = {
+      mealIndex: snackIndex,
+      completedAt: completedAtIso,
+      completed: true,
+    };
+    nextMealCompletions.snacks = snacks;
+    return nextMealCompletions;
+  }
+
+  nextMealCompletions[mealType] = {
+    completedAt: completedAtIso,
+    completed: true,
+  };
+
+  return nextMealCompletions;
+};
+
 const normalizeMealTimeWindow = (mealType, timeWindow, index = null) => {
   const defaults = mealType === "snack"
     ? DEFAULT_MEAL_TIME_WINDOWS.snacks[index] || DEFAULT_MEAL_TIME_WINDOWS.snacks[DEFAULT_MEAL_TIME_WINDOWS.snacks.length - 1]
@@ -1243,6 +1287,9 @@ const updateMealTimeWindows = async (userId, mealTimeWindows = {}) => {
   const basePlan = latest.plan || {};
   const normalizedMealTimeWindows = normalizeMealTimeWindowUpdatePayload(mealTimeWindows);
   const updatedPlan = mergeMealTimeWindows(basePlan, normalizedMealTimeWindows);
+  if (basePlan.mealCompletions) {
+    updatedPlan.mealCompletions = cloneMealCompletions(basePlan.mealCompletions);
+  }
   updatedPlan.mealTimeWindows = {
     ...(basePlan.mealTimeWindows || {}),
     ...(normalizedMealTimeWindows.breakfast ? { breakfast: normalizeMealTimeWindow("breakfast", normalizedMealTimeWindows.breakfast) } : {}),
@@ -1266,6 +1313,49 @@ const updateMealTimeWindows = async (userId, mealTimeWindows = {}) => {
 
   await dietRepo.createPlan(userId, updatedPlan);
   return getLatestMealPlan(userId);
+};
+
+const completeMeal = async (userId, { mealType, mealIndex, completedAt } = {}) => {
+  const latest = await dietRepo.findLatestPlan(userId);
+  if (!latest) {
+    throw new AppError("Meal plan not found", 404);
+  }
+
+  const normalizedMealType = String(mealType || "").toLowerCase();
+  if (!["breakfast", "lunch", "dinner", "snack"].includes(normalizedMealType)) {
+    throw new AppError("Invalid meal type", 400);
+  }
+
+  if (normalizedMealType === "snack") {
+    const snackIndex = Number(mealIndex);
+    if (!Number.isInteger(snackIndex) || snackIndex < 1) {
+      throw new AppError("mealIndex is required for snack completion", 400);
+    }
+  }
+
+  const completionTime = completedAt ? new Date(completedAt) : new Date();
+  if (Number.isNaN(completionTime.getTime())) {
+    throw new AppError("Invalid completedAt value", 400);
+  }
+
+  const basePlan = latest.plan || {};
+  const updatedPlan = {
+    ...basePlan,
+    mealCompletions: updateMealCompletionState(basePlan.mealCompletions, {
+      mealType: normalizedMealType,
+      mealIndex,
+      completedAt: completionTime,
+    }),
+  };
+
+  await dietRepo.createPlan(userId, updatedPlan);
+
+  return {
+    mealType: normalizedMealType,
+    mealIndex: normalizedMealType === "snack" ? Number(mealIndex) : null,
+    completedAt: completionTime.toISOString(),
+    message: buildMealCompletionMessage(normalizedMealType, normalizedMealType === "snack" ? Number(mealIndex) : null),
+  };
 };
 
 const generateAIMealSuggestions = async ({
@@ -1413,6 +1503,7 @@ module.exports = {
   getLatestMealPlan,
   normalizeMealTimeWindowUpdatePayload,
   updateMealTimeWindows,
+  completeMeal,
   formatMealPlanResponse,
   formatEssentialMealPlanResponse,
   selectBalancedMealItems,

@@ -105,4 +105,18 @@ const updateMealTimeWindows = async (req, res, next) => {
   }
 };
 
-module.exports = { generateMealPlan, getAlternatives, getLatestMealPlan, updateMealTimeWindows };
+const completeMeal = async (req, res, next) => {
+  try {
+    const result = await mealService.completeMeal(req.user.id, req.body);
+    return res.json({
+      success: true,
+      data: {
+        message: result.message,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+module.exports = { generateMealPlan, getAlternatives, getLatestMealPlan, updateMealTimeWindows, completeMeal };

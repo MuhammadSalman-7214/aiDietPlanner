@@ -1,11 +1,14 @@
 const test = require("node:test");
+const { mock } = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
   formatEssentialMealPlanResponse,
+  completeMeal,
   normalizeMealTimeWindowUpdatePayload,
   selectBalancedMealItems,
 } = require("./meal.service");
+const dietRepo = require("../diet/diet.repository");
 
 const buildFood = (overrides) => ({
   category: "breakfast",
@@ -296,4 +299,40 @@ test("meal time window updates normalize single-meal payloads", () => {
       ],
     },
   );
+});
+
+test("meal completion stores the completion state and returns a simple message", async () => {
+  try {
+    mock.method(dietRepo, "findLatestPlan", async () => ({
+      id: 41,
+      userId: 9,
+      plan: {
+        nutrition: { targetCalories: 1800 },
+        mealCompletions: {
+          breakfast: {
+            completedAt: "2026-05-12T07:00:00.000Z",
+            completed: true,
+          },
+        },
+      },
+    }));
+
+    let savedPlan = null;
+    mock.method(dietRepo, "createPlan", async (userId, plan) => {
+      savedPlan = { userId, plan };
+      return { id: 41, userId, plan };
+    });
+
+    const result = await completeMeal(9, { mealType: "lunch" });
+
+    assert.equal(result.message, "Lunch is done.");
+    assert.equal(result.mealType, "lunch");
+    assert.equal(result.mealIndex, null);
+    assert.equal(savedPlan.userId, 9);
+    assert.equal(savedPlan.plan.mealCompletions.breakfast.completed, true);
+    assert.equal(savedPlan.plan.mealCompletions.lunch.completed, true);
+    assert.equal(typeof savedPlan.plan.mealCompletions.lunch.completedAt, "string");
+  } finally {
+    mock.restoreAll();
+  }
 });
